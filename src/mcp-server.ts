@@ -312,6 +312,17 @@ server.tool(
   }
 );
 
+server.tool(
+  "lazy_yolo_report",
+  "Generate a scorecard for the current or completed yolo run: process quality (first-pass rate, retries, failures), build quality (typecheck, tests), per-sprint breakdown with timing.",
+  {},
+  async () => {
+    const { yoloReport } = await import("./yolo.js");
+    const output = await yoloReport(getRoot());
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
 // --- Start server ---
 
 async function main() {

@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "fs";
 import { join, resolve } from "path";
-import { readLazyJson, writeLazyJson, readLazyFile } from "./store.js";
+import { readLazyJson, writeLazyJson, readLazyFile, appendLazyFile } from "./store.js";
 import { check } from "./process.js";
 import { journal, snapshot } from "./persist.js";
 
@@ -38,9 +38,36 @@ interface YoloState {
   iterations: number;
   maxIterationsPerSprint: number;
   snapshotBefore?: string;
+  runId?: string;
 }
 
 const YOLO_FILE = "yolo.json";
+
+// --- Event Logging ---
+
+interface YoloEvent {
+  ts: string;
+  event: string;
+  sprint?: string;
+  data?: Record<string, unknown>;
+  durationMs?: number;
+}
+
+function logEvent(root: string, runId: string, event: YoloEvent): void {
+  appendLazyFile(root, JSON.stringify(event) + "\n", "runs", runId, "events.jsonl");
+}
+
+function getRunId(state: YoloState): string {
+  return state.runId ?? `yolo-${state.plan.created.split("T")[0]}`;
+}
+
+function loadEvents(root: string, runId: string): YoloEvent[] {
+  const raw = readLazyFile(root, "runs", runId, "events.jsonl");
+  if (!raw) return [];
+  return raw.trim().split("\n").filter(Boolean).map(line => {
+    try { return JSON.parse(line); } catch { return null; }
+  }).filter(Boolean) as YoloEvent[];
+}
 
 // --- State I/O ---
 
@@ -244,6 +271,11 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
       `Use 'lazy yolo status' to see progress or 'lazy yolo reset' to start over.`;
   }
 
+  // Pre-flight: quick selftest
+  const { selftest: runSelftest } = await import("./selftest.js");
+  const preflight = await preflightCheck(root, runSelftest);
+  if (preflight) return preflight;
+
   // Read PRD
   const fullPath = resolve(root, prdPath);
   if (!existsSync(fullPath)) {
@@ -266,6 +298,7 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
 
   // Create state
   const now = new Date().toISOString();
+  const runId = `yolo-${now.replace(/[:.]/g, "-").slice(0, 19)}`;
   const state: YoloState = {
     plan: {
       prdFile: prdPath,
@@ -280,6 +313,7 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
     iterations: 0,
     maxIterationsPerSprint: 3,
     snapshotBefore: snapName,
+    runId,
   };
 
   // Mark first sprint as active
@@ -288,10 +322,45 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
 
   saveState(root, state);
 
+  // Log start event
+  logEvent(root, runId, {
+    ts: now,
+    event: "yolo-start",
+    data: { goal, sprintCount: sprints.length, prdFile: prdPath, totalTasks: sprints.reduce((n, s) => n + s.tasks.length, 0) },
+  });
+
   // Journal the start
   await journal(root, `YOLO mode started: "${goal}" — ${sprints.length} sprint(s) from ${prdPath}`);
 
   return generateMasterPrompt(state);
+}
+
+async function preflightCheck(root: string, runSelftest: (quick: boolean, report: boolean) => Promise<void>): Promise<string | null> {
+  const lines: string[] = [];
+  const origLog = console.log;
+  const origErr = console.error;
+  let failed = false;
+  console.log = (...args: any[]) => lines.push(args.map(String).join(" "));
+  console.error = (...args: any[]) => lines.push(args.map(String).join(" "));
+  const origExitCode = process.exitCode;
+
+  try {
+    await runSelftest(true, false);
+    failed = process.exitCode === 1;
+  } catch {
+    failed = true;
+  } finally {
+    console.log = origLog;
+    console.error = origErr;
+  }
+
+  if (failed) {
+    process.exitCode = 1;
+    return `Pre-flight selftest failed! Fix lazy-fetch before running yolo mode.\n\n${lines.join("\n")}`;
+  }
+
+  process.exitCode = origExitCode;
+  return null;
 }
 
 export async function yoloStatus(root: string): Promise<string> {
@@ -353,6 +422,9 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
     return "No current sprint to advance.";
   }
 
+  const runId = getRunId(state);
+  const advanceStart = performance.now();
+
   // Run validation
   const validation = await runValidation(root);
 
@@ -364,6 +436,15 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
 
   state.iterations++;
 
+  // Log validation event
+  logEvent(root, runId, {
+    ts: new Date().toISOString(),
+    event: "validation",
+    sprint: current.title,
+    data: { pass: validation.pass, attempt: state.iterations },
+    durationMs: Math.round(performance.now() - advanceStart),
+  });
+
   if (!validation.pass) {
     // Validation failed — check retry budget
     const sprintIterations = state.iterations;
@@ -371,6 +452,14 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
       current.status = "failed";
       state.status = "paused";
       saveState(root, state);
+
+      logEvent(root, runId, {
+        ts: new Date().toISOString(),
+        event: "sprint-failed",
+        sprint: current.title,
+        data: { attempts: sprintIterations },
+      });
+
       await journal(root, `YOLO sprint "${current.title}" failed after ${sprintIterations} attempts`);
       return `Sprint "${current.title}" failed validation after ${sprintIterations} attempts.\n\n` +
         `Validation output:\n${validation.output}\n\n` +
@@ -388,6 +477,15 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
   current.status = "done";
   current.completed = now;
 
+  const sprintDurationMs = current.started ? new Date(now).getTime() - new Date(current.started).getTime() : 0;
+
+  logEvent(root, runId, {
+    ts: now,
+    event: "sprint-done",
+    sprint: current.title,
+    data: { attempts: state.iterations, durationMs: sprintDurationMs, notes: notes ?? "" },
+  });
+
   await journal(root, `YOLO sprint "${current.title}" completed. ${notes ?? ""}`);
 
   // Check if all done
@@ -396,6 +494,16 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
     state.status = "completed";
     saveState(root, state);
     await snapshot(root, "post-yolo");
+
+    logEvent(root, runId, {
+      ts: now,
+      event: "yolo-complete",
+      data: {
+        totalSprints: state.plan.sprints.length,
+        totalDurationMs: new Date(now).getTime() - new Date(state.plan.created).getTime(),
+      },
+    });
+
     await journal(root, `YOLO mode completed! All ${state.plan.sprints.length} sprints done.`);
 
     const done = state.plan.sprints.filter(s => s.status === "done").length;
@@ -403,7 +511,7 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
       `─${"─".repeat(54)}\n` +
       `  Goal: ${state.plan.goal}\n` +
       `  Sprints: ${done}/${state.plan.sprints.length} done\n\n` +
-      `  All sprints completed. Do a final 'lazy check' and commit your work.`;
+      `  All sprints completed. Run 'lazy yolo report' for a full scorecard, then commit your work.`;
   }
 
   // Advance to next sprint
@@ -414,6 +522,13 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
   next.started = now;
 
   saveState(root, state);
+
+  logEvent(root, runId, {
+    ts: now,
+    event: "sprint-start",
+    sprint: next.title,
+    data: { sprintIndex: nextIdx, taskCount: next.tasks.length },
+  });
 
   return `Sprint "${current.title}" completed!\n\n` +
     `  Next: Sprint ${nextIdx + 1} — ${next.title}\n` +
@@ -452,6 +567,121 @@ export async function yoloDryRun(root: string, prdPath: string): Promise<string>
   lines.push(`  Total: ${sprints.length} sprint(s), ${totalTasks} task(s)`);
 
   return lines.join("\n");
+}
+
+export async function yoloReport(root: string): Promise<string> {
+  const state = loadState(root);
+  if (!state) {
+    return "No yolo session found. Run 'lazy yolo <prd-file>' first.";
+  }
+
+  const runId = getRunId(state);
+  const events = loadEvents(root, runId);
+  const { plan } = state;
+
+  const lines: string[] = [];
+  lines.push(`\n  Yolo Run Report — ${plan.goal}`);
+  lines.push("─".repeat(55));
+  lines.push(`  PRD: ${plan.prdFile}`);
+  lines.push(`  Status: ${state.status.toUpperCase()}`);
+  lines.push(`  Run ID: ${runId}`);
+
+  // Duration
+  const startEvent = events.find(e => e.event === "yolo-start");
+  const endEvent = events.find(e => e.event === "yolo-complete");
+  if (startEvent && endEvent) {
+    const durationMs = new Date(endEvent.ts).getTime() - new Date(startEvent.ts).getTime();
+    lines.push(`  Duration: ${formatDuration(durationMs)}`);
+  } else if (startEvent) {
+    const elapsed = Date.now() - new Date(startEvent.ts).getTime();
+    lines.push(`  Elapsed: ${formatDuration(elapsed)} (still running)`);
+  }
+
+  // Sprint summary
+  const totalSprints = plan.sprints.length;
+  const doneSprints = plan.sprints.filter(s => s.status === "done").length;
+  const failedSprints = plan.sprints.filter(s => s.status === "failed").length;
+  const totalTasks = plan.sprints.reduce((n, s) => n + s.tasks.length, 0);
+
+  lines.push("");
+  lines.push("  Process Quality:");
+
+  // First-pass rate: sprints that passed validation on first attempt
+  const sprintDoneEvents = events.filter(e => e.event === "sprint-done");
+  const firstPassCount = sprintDoneEvents.filter(e => (e.data?.attempts as number) <= 1).length;
+  const completedSprints = sprintDoneEvents.length;
+  if (completedSprints > 0) {
+    lines.push(`    First-pass rate:    ${firstPassCount}/${completedSprints} sprints (${Math.round(firstPassCount / completedSprints * 100)}%)`);
+  }
+
+  // Total retries
+  const validationEvents = events.filter(e => e.event === "validation");
+  const failedValidations = validationEvents.filter(e => !(e.data?.pass));
+  lines.push(`    Total validations:  ${validationEvents.length} (${failedValidations.length} failed)`);
+
+  // Sprint failures
+  const sprintFailEvents = events.filter(e => e.event === "sprint-failed");
+  lines.push(`    Sprint failures:    ${sprintFailEvents.length}`);
+
+  // Build quality (from latest check)
+  lines.push("");
+  lines.push("  Build Quality:");
+
+  const checkOutput = await captureCheckOutput(root);
+  for (const line of checkOutput.split("\n").filter(Boolean)) {
+    if (line.includes("✓") || line.includes("✗") || line.includes("⚠")) {
+      lines.push(`  ${line}`);
+    }
+  }
+
+  // Per-sprint breakdown
+  lines.push("");
+  lines.push("  Sprint Breakdown:");
+  for (let i = 0; i < plan.sprints.length; i++) {
+    const s = plan.sprints[i];
+    const icon = s.status === "done" ? "✓" : s.status === "failed" ? "✗" : s.status === "active" ? ">" : " ";
+    const doneEvent = sprintDoneEvents.find(e => e.sprint === s.title);
+    const attempts = doneEvent?.data?.attempts ?? "?";
+    const durationMs = doneEvent?.data?.durationMs as number | undefined;
+    const duration = durationMs ? ` (${formatDuration(durationMs)})` : "";
+    lines.push(`    ${icon} Sprint ${i + 1}: ${s.title} — ${s.tasks.length} tasks, ${attempts} attempt(s)${duration}`);
+  }
+
+  // Summary
+  lines.push("");
+  lines.push("─".repeat(55));
+  lines.push(`  Sprints: ${doneSprints}/${totalSprints} done, ${failedSprints} failed`);
+  lines.push(`  Tasks: ${totalTasks} total`);
+  lines.push(`  Events logged: ${events.length}`);
+
+  return lines.join("\n");
+}
+
+async function captureCheckOutput(root: string): Promise<string> {
+  const lines: string[] = [];
+  const origLog = console.log;
+  const origErr = console.error;
+  console.log = (...args: any[]) => lines.push(args.map(String).join(" "));
+  console.error = (...args: any[]) => lines.push(args.map(String).join(" "));
+  try {
+    await check(root);
+  } finally {
+    console.log = origLog;
+    console.error = origErr;
+  }
+  return lines.join("\n");
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins < 60) return `${mins}m ${remSecs}s`;
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return `${hours}h ${remMins}m`;
 }
 
 export async function yoloReset(root: string): Promise<void> {

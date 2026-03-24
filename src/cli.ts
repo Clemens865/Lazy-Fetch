@@ -43,7 +43,9 @@ lazy — CLI companion for Claude Code
 
   Yolo (autonomous mode):
     lazy yolo <prd-file>       Parse PRD, sprint plan, execute autonomously
+    lazy yolo <prd> --dry-run  Preview sprint plan without writing state
     lazy yolo status           Show yolo mode progress
+    lazy yolo report           Run scorecard: process quality, build quality
     lazy yolo reset            Clear yolo state and start over
 
   Validate:
@@ -372,6 +374,9 @@ async function main() {
       if (sub === "status") {
         const { yoloStatus } = await import("./yolo.js");
         console.log(await yoloStatus(root));
+      } else if (sub === "report") {
+        const { yoloReport } = await import("./yolo.js");
+        console.log(await yoloReport(root));
       } else if (sub === "reset") {
         const { yoloReset } = await import("./yolo.js");
         await yoloReset(root);

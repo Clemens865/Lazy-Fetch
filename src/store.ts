@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "fs";
 import { join, dirname } from "path";
 
 const LAZY_DIR = ".lazy";
@@ -54,4 +54,12 @@ export function readLazyJson<T>(root: string, fallback: T, ...parts: string[]): 
 /** Write JSON to .lazy/ */
 export function writeLazyJson(root: string, data: unknown, ...parts: string[]): void {
   writeLazyFile(root, JSON.stringify(data, null, 2) + "\n", ...parts);
+}
+
+/** Append a line to a file in .lazy/, creating dirs as needed */
+export function appendLazyFile(root: string, content: string, ...parts: string[]): void {
+  const p = lazyPath(root, ...parts);
+  const dir = dirname(p);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  appendFileSync(p, content, "utf-8");
 }

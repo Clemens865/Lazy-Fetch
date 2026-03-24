@@ -19,6 +19,10 @@ This project uses [lazy-fetch](https://github.com/Clemens865/Lazy-Fetch) for con
 | `lazy recall [key]` | Retrieve stored knowledge |
 | `lazy journal <entry>` | Log a decision or milestone |
 | `lazy yolo <prd-file>` | Autonomous mode: parse PRD into sprints, execute end-to-end |
+| `lazy yolo <prd> --dry-run` | Preview sprint plan without writing state |
+| `lazy yolo report` | Run scorecard: process quality, build quality, per-sprint timing |
+| `lazy selftest` | Verify lazy-fetch works correctly (22 built-in tests) |
+| `lazy selftest --quick` | Fast validation (17 tests, ~20ms) |
 
 ### Blueprints — Use These for Common Tasks
 
@@ -45,7 +49,7 @@ Blueprints are pre-built workflows that handle the full cycle: gather context, c
 ### MCP Tools
 
 When MCP is available, prefer calling lazy-fetch tools directly:
-`lazy_read`, `lazy_plan`, `lazy_status`, `lazy_gather`, `lazy_check`, `lazy_remember`, `lazy_recall`, `lazy_blueprint_run`, `lazy_blueprint_list`, `lazy_yolo_start`, `lazy_yolo_status`, `lazy_yolo_advance`
+`lazy_read`, `lazy_plan`, `lazy_status`, `lazy_gather`, `lazy_check`, `lazy_remember`, `lazy_recall`, `lazy_blueprint_run`, `lazy_blueprint_list`, `lazy_yolo_start`, `lazy_yolo_status`, `lazy_yolo_advance`, `lazy_yolo_report`
 
 ### Workflow Guidance
 
@@ -59,6 +63,8 @@ After completing a task or milestone, suggest the appropriate next lazy-fetch co
 - Made an important decision? → Suggest `lazy remember` or `lazy journal`
 - Done with the plan? → Suggest `lazy plan --reset` to archive and start fresh
 - Want to build from a PRD? → Suggest `lazy yolo <prd-file>`
+- Yolo run finished? → Suggest `lazy yolo report` for a quality scorecard
+- Something seems broken? → Suggest `lazy selftest` to verify lazy-fetch health
 
 ### Key Principles
 - Run `lazy read` at session start to restore context

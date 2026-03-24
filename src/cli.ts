@@ -41,6 +41,8 @@ lazy — CLI companion for Claude Code
 
   Other:
     lazy init                  Initialize .lazy/ in current project
+    lazy init --update         Refresh hooks, commands, blueprints to latest
+    lazy upgrade               Update lazy-fetch itself from GitHub
     lazy help                  Show this help
 `;
 
@@ -53,25 +55,30 @@ async function main() {
   }
 
   if (cmd === "init") {
+    const forceUpdate = args.includes("--update") || args.includes("-u");
     const cwd = process.cwd();
     const dir = ensureLazyDir(cwd);
-    console.log(`Initialized .lazy/ at ${dir}`);
 
     const { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, copyFileSync, chmodSync } = await import("fs");
     const { join, dirname } = await import("path");
     const lazyFetchRoot = dirname(new URL(import.meta.url).pathname);
     const projectRoot = join(lazyFetchRoot, "..");
 
+    if (forceUpdate) {
+      console.log("Updating lazy-fetch scaffolding...");
+    } else {
+      console.log(`Initialized .lazy/ at ${dir}`);
+    }
+
     // --- Scaffold .lazy/ internal structure ---
 
-    // Subdirectories that features depend on
     const lazySubdirs = ["context", "snapshots", "runs"];
     for (const sub of lazySubdirs) {
       const subPath = join(dir, sub);
       if (!existsSync(subPath)) mkdirSync(subPath, { recursive: true });
     }
 
-    // Seed files — create with valid defaults so hooks/commands work from the start
+    // Seed files — only create if missing (never overwrite user data)
     const seedFiles: Record<string, string> = {
       "memory.json": JSON.stringify({}, null, 2) + "\n",
       "journal.md": "# Lazy Fetch Journal\n",
@@ -88,59 +95,68 @@ async function main() {
         writeFileSync(filePath, content, "utf-8");
       }
     }
-    console.log("  Created .lazy/ structure (context/, snapshots/, runs/, seed files)");
+    console.log("  .lazy/ structure ready");
 
     // --- Scaffold project-level integration files ---
+    // With --update: always overwrite hooks, blueprints, commands, settings, mcp
+    // Without: only create if missing
 
-    // Copy hooks
+    // Copy hooks (always overwrite on --update)
     const hooksDir = join(cwd, "hooks");
     const srcHooks = join(projectRoot, "hooks");
-    if (!existsSync(hooksDir) && existsSync(srcHooks)) {
-      mkdirSync(hooksDir, { recursive: true });
-      for (const f of readdirSync(srcHooks)) {
-        copyFileSync(join(srcHooks, f), join(hooksDir, f));
-        chmodSync(join(hooksDir, f), 0o755);
+    if (existsSync(srcHooks)) {
+      if (!existsSync(hooksDir)) mkdirSync(hooksDir, { recursive: true });
+      if (forceUpdate || !readdirSync(hooksDir).some(f => f.endsWith(".sh"))) {
+        for (const f of readdirSync(srcHooks)) {
+          copyFileSync(join(srcHooks, f), join(hooksDir, f));
+          chmodSync(join(hooksDir, f), 0o755);
+        }
+        console.log(forceUpdate ? "  Updated hooks/" : "  Copied hooks/");
       }
-      console.log("  Copied hooks/");
     }
 
-    // Copy blueprints
+    // Copy blueprints (always overwrite on --update)
     const bpDir = join(cwd, "blueprints");
     const srcBp = join(projectRoot, "blueprints");
-    if (!existsSync(bpDir) && existsSync(srcBp)) {
-      mkdirSync(bpDir, { recursive: true });
-      for (const f of readdirSync(srcBp).filter(f => f.endsWith(".yaml") || f.endsWith(".yml"))) {
-        copyFileSync(join(srcBp, f), join(bpDir, f));
+    if (existsSync(srcBp)) {
+      if (!existsSync(bpDir)) mkdirSync(bpDir, { recursive: true });
+      const yamlFiles = readdirSync(srcBp).filter(f => f.endsWith(".yaml") || f.endsWith(".yml"));
+      if (forceUpdate || !existsSync(join(bpDir, yamlFiles[0] ?? ""))) {
+        for (const f of yamlFiles) {
+          copyFileSync(join(srcBp, f), join(bpDir, f));
+        }
+        console.log(forceUpdate ? "  Updated blueprints/" : "  Copied blueprints/");
       }
-      console.log("  Copied blueprints/");
     }
 
-    // Create .claude/settings.json if not present
+    // .claude/settings.json (always overwrite on --update)
     const claudeDir = join(cwd, ".claude");
     const settingsPath = join(claudeDir, "settings.json");
-    if (!existsSync(settingsPath)) {
+    if (forceUpdate || !existsSync(settingsPath)) {
       const srcSettings = join(projectRoot, ".claude", "settings.json");
       if (existsSync(srcSettings)) {
         mkdirSync(claudeDir, { recursive: true });
         writeFileSync(settingsPath, readFileSync(srcSettings, "utf-8"));
-        console.log("  Created .claude/settings.json with hooks");
+        console.log(forceUpdate ? "  Updated .claude/settings.json" : "  Created .claude/settings.json");
       }
     }
 
-    // Create .claude/commands/ if not present
+    // .claude/commands/ (always overwrite on --update)
     const commandsDir = join(claudeDir, "commands");
     const srcCommands = join(projectRoot, ".claude", "commands");
-    if (!existsSync(commandsDir) && existsSync(srcCommands)) {
-      mkdirSync(commandsDir, { recursive: true });
-      for (const f of readdirSync(srcCommands)) {
-        copyFileSync(join(srcCommands, f), join(commandsDir, f));
+    if (existsSync(srcCommands)) {
+      if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true });
+      if (forceUpdate || readdirSync(commandsDir).length === 0) {
+        for (const f of readdirSync(srcCommands)) {
+          copyFileSync(join(srcCommands, f), join(commandsDir, f));
+        }
+        console.log(forceUpdate ? "  Updated .claude/commands/" : "  Created .claude/commands/");
       }
-      console.log("  Created .claude/commands/ with slash commands");
     }
 
-    // Create .mcp.json if not present
+    // .mcp.json (always overwrite on --update)
     const mcpPath = join(cwd, ".mcp.json");
-    if (!existsSync(mcpPath)) {
+    if (forceUpdate || !existsSync(mcpPath)) {
       const mcpConfig = {
         mcpServers: {
           "lazy-fetch": {
@@ -151,31 +167,53 @@ async function main() {
         },
       };
       writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2) + "\n");
-      console.log("  Created .mcp.json for MCP server");
+      console.log(forceUpdate ? "  Updated .mcp.json" : "  Created .mcp.json");
     }
 
-    // Summary
-    console.log(`
+    if (!forceUpdate) {
+      console.log(`
   Project structure:
     .lazy/
-      plan.json          Plan data (machine-readable)
-      plan.md            Plan view (human-readable)
-      memory.json        Persistent key-value store
-      journal.md         Decision log
-      CONTEXT.md         Generated context for Claude Code
-      context/
-        symbols.json     Cached symbol index
-        access.json      File access patterns
-      snapshots/         Point-in-time state captures
-      runs/              Blueprint execution logs
+      plan.json, memory.json, journal.md, CONTEXT.md
+      context/   snapshots/   runs/
     hooks/               Hook scripts for Claude Code events
     blueprints/          YAML workflow definitions
     .claude/
       settings.json      Hook configuration
       commands/           Slash commands (/project:read, etc.)
-    .mcp.json            MCP server configuration
+    .mcp.json            MCP server config
 
-  Run 'lazy read' to get started.`);
+  Run 'lazy read' to get started.
+  After updating lazy-fetch, run 'lazy init --update' to refresh.`);
+    } else {
+      console.log("\n  All scaffolding updated to latest version.");
+      console.log("  Your data (.lazy/plan, memory, journal) was preserved.");
+    }
+    return;
+  }
+
+  if (cmd === "upgrade") {
+    const { dirname } = await import("path");
+    const { execSync } = await import("child_process");
+    const lazyFetchRoot = dirname(new URL(import.meta.url).pathname);
+    const projectRoot = dirname(lazyFetchRoot);
+
+    console.log("\n  Upgrading lazy-fetch...");
+    console.log("─".repeat(55));
+    try {
+      const branch = execSync("git branch --show-current", { cwd: projectRoot, encoding: "utf-8" }).trim();
+      console.log(`  Pulling latest from ${branch}...`);
+      execSync("git pull", { cwd: projectRoot, encoding: "utf-8", stdio: "pipe" });
+      console.log("  Installing dependencies...");
+      execSync("npm install", { cwd: projectRoot, encoding: "utf-8", stdio: "pipe" });
+      console.log("  Building...");
+      execSync("npm run build", { cwd: projectRoot, encoding: "utf-8", stdio: "pipe" });
+      console.log("\n  lazy-fetch upgraded!");
+      console.log("  Run 'lazy init --update' in your projects to refresh hooks/commands.");
+    } catch (err: any) {
+      console.error(`  Upgrade failed: ${err.message}`);
+      process.exitCode = 1;
+    }
     return;
   }
 

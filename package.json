@@ -1,0 +1,26 @@
+{
+  "name": "lazy-fetch",
+  "version": "0.1.0",
+  "description": "CLI companion for Claude Code — context, persistence, process tracking. Minimum effort, maximum result.",
+  "type": "module",
+  "bin": {
+    "lazy": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "claude-code",
+    "agentic",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2"
+  }
+}

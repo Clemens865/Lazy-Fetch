@@ -1,0 +1,65 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/session-start.sh",
+            "timeout": 15,
+            "statusMessage": "Loading lazy fetch context..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/post-edit-check.sh",
+            "timeout": 30,
+            "statusMessage": "Checking types..."
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in research/frameworks/*.md) ./hooks/check-research-template.sh \"$f\" ;; esac; } 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Checking research template..."
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in research/*.md|research/**/*.md) ./hooks/tag-insights.sh \"$f\" ;; esac; } 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Checking insight tags..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/session-stop.sh",
+            "timeout": 15,
+            "statusMessage": "Saving session state..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/pre-compact.sh",
+            "timeout": 15,
+            "statusMessage": "Preserving lazy fetch state..."
+          }
+        ]
+      }
+    ]
+  }
+}

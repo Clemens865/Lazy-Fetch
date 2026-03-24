@@ -421,6 +421,39 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
     `  Gather context with lazy_gather and start implementing.`;
 }
 
+export async function yoloDryRun(root: string, prdPath: string): Promise<string> {
+  const fullPath = resolve(root, prdPath);
+  if (!existsSync(fullPath)) {
+    return `PRD file not found: ${prdPath}`;
+  }
+
+  const prdContent = readFileSync(fullPath, "utf-8");
+  if (!prdContent.trim()) {
+    return `PRD file is empty: ${prdPath}`;
+  }
+
+  const { goal, sprints } = parsePrdToSprints(prdContent);
+
+  const lines: string[] = [];
+  lines.push(`\n  Yolo Dry Run — plan preview (no state written)`);
+  lines.push("─".repeat(55));
+  lines.push(`  Goal: ${goal}`);
+  lines.push(`  Sprints: ${sprints.length}\n`);
+
+  for (const s of sprints) {
+    lines.push(`  ### ${s.title}`);
+    for (const t of s.tasks) {
+      lines.push(`    - ${t}`);
+    }
+    lines.push("");
+  }
+
+  const totalTasks = sprints.reduce((n, s) => n + s.tasks.length, 0);
+  lines.push(`  Total: ${sprints.length} sprint(s), ${totalTasks} task(s)`);
+
+  return lines.join("\n");
+}
+
 export async function yoloReset(root: string): Promise<void> {
   const state = loadState(root);
   if (!state) {

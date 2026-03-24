@@ -5,6 +5,7 @@ import { remember, recall, journal, snapshot } from "./persist.js";
 import { context, gather, watch, claudemd } from "./context.js";
 import { blueprintRun, blueprintList, blueprintShow } from "./blueprint.js";
 import { findLazyRoot, ensureLazyDir } from "./store.js";
+import { selftest } from "./selftest.js";
 
 const HELP = `
 lazy — CLI companion for Claude Code
@@ -44,6 +45,11 @@ lazy — CLI companion for Claude Code
     lazy yolo <prd-file>       Parse PRD, sprint plan, execute autonomously
     lazy yolo status           Show yolo mode progress
     lazy yolo reset            Clear yolo state and start over
+
+  Validate:
+    lazy selftest              Run all self-validation checks
+    lazy selftest --quick      Skip git and yolo tests
+    lazy selftest --report     Output JSON metrics for tracking
 
   Other:
     lazy init                  Initialize .lazy/ in current project
@@ -352,6 +358,14 @@ async function main() {
       await snapshot(root, args[0]);
       break;
 
+    // Selftest
+    case "selftest": {
+      const quick = args.includes("--quick") || args.includes("-q");
+      const report = args.includes("--report") || args.includes("-r");
+      await selftest(quick, report);
+      break;
+    }
+
     // Yolo
     case "yolo": {
       const [sub] = args;
@@ -361,6 +375,15 @@ async function main() {
       } else if (sub === "reset") {
         const { yoloReset } = await import("./yolo.js");
         await yoloReset(root);
+      } else if (args.includes("--dry-run")) {
+        const prdFile = args.find(a => a !== "--dry-run");
+        if (prdFile) {
+          const { yoloDryRun } = await import("./yolo.js");
+          console.log(await yoloDryRun(root, prdFile));
+        } else {
+          console.error("Usage: lazy yolo <prd-file> --dry-run");
+          process.exitCode = 1;
+        }
       } else if (sub) {
         const { yoloStart } = await import("./yolo.js");
         console.log(await yoloStart(root, sub));

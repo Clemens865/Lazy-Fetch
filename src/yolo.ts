@@ -193,16 +193,31 @@ For each sprint:
 
 1. **Check status** — Call \`lazy_yolo_status\` to see the current sprint and its tasks
 2. **Gather context** — Call \`lazy_gather\` with the sprint title to find relevant files
-3. **Execute tasks** — Implement all tasks in the sprint. Write clean, minimal code.
-4. **Validate** — Call \`lazy_check\` to verify typecheck + tests pass
-5. **Fix issues** — If checks fail, fix them. Repeat step 4 (max 3 attempts per sprint).
-6. **Advance** — Call \`lazy_yolo_advance\` with brief notes. This validates and moves to the next sprint.
-7. **Repeat** — Continue with the next sprint. Do not stop.
+3. **Execute tasks** — For each task in the sprint, pick the right approach:
+   - **Adding new functionality?** → Run \`lazy_blueprint_run\` with name \`add-feature\` and the task as input
+   - **Fixing a bug?** → Run \`lazy_blueprint_run\` with name \`fix-bug\` and the bug description as input
+   - **Trying something uncertain?** → Run \`lazy_blueprint_run\` with name \`experiment\` and the idea as input
+   - **Setup/config/simple tasks?** → Implement directly, then run \`lazy_check\`
+4. **Follow blueprint prompts** — Blueprints return agentic steps (analyze, implement, document). Execute each prompt in order.
+5. **Validate** — Call \`lazy_check\` to verify typecheck + tests pass
+6. **Fix issues** — If checks fail, fix them. Repeat step 5 (max 3 attempts per sprint).
+7. **Advance** — Call \`lazy_yolo_advance\` with brief notes. This validates and moves to the next sprint.
+8. **Repeat** — Continue with the next sprint. Do not stop.
+
+## Blueprints Available
+
+- \`add-feature\` — Full loop: gather → research → plan → implement → typecheck → test → document → remember
+- \`fix-bug\` — Targeted: gather → checkpoint → analyze → fix → typecheck → test → remember
+- \`experiment\` — Safe: gather → branch → implement → validate → evaluate (keeps or discards)
+- \`review-code\` — Audit: gather → diff → typecheck → review → suggest
+
+Use blueprints via MCP: \`lazy_blueprint_run\` with \`name\` and \`input\` parameters.
 
 ## Rules
 
 - NEVER stop to ask for confirmation. Keep going until all sprints are done.
 - NEVER skip validation. Every sprint must pass checks before advancing.
+- **Use blueprints for tasks that match** — they enforce a structured workflow with checkpoints and validation.
 - If \`lazy_yolo_advance\` reports a validation failure, fix the issues and try again.
 - Use \`lazy_remember\` for important decisions so later sprints have context.
 - Use \`lazy_journal\` to log significant choices or tradeoffs.

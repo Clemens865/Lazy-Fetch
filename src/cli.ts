@@ -39,6 +39,11 @@ lazy — CLI companion for Claude Code
     lazy journal [entry]       Append to / read decision log
     lazy snapshot [name]       Save current project state
 
+  Yolo (autonomous mode):
+    lazy yolo <prd-file>       Parse PRD, sprint plan, execute autonomously
+    lazy yolo status           Show yolo mode progress
+    lazy yolo reset            Clear yolo state and start over
+
   Other:
     lazy init                  Initialize .lazy/ in current project
     lazy init --update         Refresh hooks, commands, blueprints to latest
@@ -304,6 +309,27 @@ async function main() {
     case "snapshot":
       await snapshot(root, args[0]);
       break;
+
+    // Yolo
+    case "yolo": {
+      const [sub] = args;
+      if (sub === "status") {
+        const { yoloStatus } = await import("./yolo.js");
+        console.log(await yoloStatus(root));
+      } else if (sub === "reset") {
+        const { yoloReset } = await import("./yolo.js");
+        await yoloReset(root);
+      } else if (sub) {
+        const { yoloStart } = await import("./yolo.js");
+        console.log(await yoloStart(root, sub));
+      } else {
+        console.error("Usage: lazy yolo <prd-file>");
+        console.error("       lazy yolo status");
+        console.error("       lazy yolo reset");
+        process.exitCode = 1;
+      }
+      break;
+    }
 
     default:
       console.error(`Unknown command: ${cmd}\nRun 'lazy help' for usage.`);

@@ -273,6 +273,45 @@ server.tool(
   }
 );
 
+// --- Yolo Mode ---
+
+server.tool(
+  "lazy_yolo_start",
+  "Start YOLO mode: parse a PRD file into sprints and begin autonomous execution. Returns a master prompt with the full sprint plan and execution instructions.",
+  {
+    prd_file: z.string().describe("Path to the PRD markdown file (relative to project root)"),
+  },
+  async ({ prd_file }) => {
+    const { yoloStart } = await import("./yolo.js");
+    const output = await yoloStart(getRoot(), prd_file);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_yolo_status",
+  "Check YOLO mode progress: current sprint, tasks, validation results, what to do next.",
+  {},
+  async () => {
+    const { yoloStatus } = await import("./yolo.js");
+    const output = await yoloStatus(getRoot());
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_yolo_advance",
+  "Validate the current sprint (runs typecheck + tests) and advance to the next one. Call this after completing all tasks in the current sprint.",
+  {
+    notes: z.string().optional().describe("Brief notes about what was accomplished in this sprint"),
+  },
+  async ({ notes }) => {
+    const { yoloAdvance } = await import("./yolo.js");
+    const output = await yoloAdvance(getRoot(), notes);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
 // --- Start server ---
 
 async function main() {

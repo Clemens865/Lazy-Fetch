@@ -1,0 +1,40 @@
+# Fix a bug: gather context, analyze, fix, validate, commit
+name: fix-bug
+description: Find and fix a bug with automated validation
+input: Bug description
+
+steps:
+  - name: gather-context
+    type: gather
+    task: "${input}"
+
+  - name: checkpoint-before
+    type: run
+    command: "git stash push -m 'pre-fix-${input}' 2>/dev/null || true"
+
+  - name: analyze-bug
+    type: prompt
+    prompt: "Analyze this bug: ${input}. Look at the gathered context files. Identify the root cause and explain your findings."
+
+  - name: implement-fix
+    type: prompt
+    prompt: "Implement the fix for: ${input}. Make minimal changes — fix the bug, nothing else."
+
+  - name: typecheck
+    type: run
+    command: "npx tsc --noEmit 2>&1"
+    gate:
+      on_fail: retry
+      max_retries: 2
+
+  - name: run-tests
+    type: run
+    command: "npm test 2>&1"
+    gate:
+      on_fail: retry
+      max_retries: 2
+
+  - name: remember-fix
+    type: remember
+    key: "fix-${input}"
+    value: "Fixed: ${input}"

@@ -3,6 +3,7 @@
 import { plan, status, update, check, add, read, resetPlan } from "./process.js";
 import { remember, recall, journal, snapshot } from "./persist.js";
 import { context, gather, watch, claudemd } from "./context.js";
+import { blueprintRun, blueprintList, blueprintShow } from "./blueprint.js";
 import { findLazyRoot, ensureLazyDir } from "./store.js";
 
 const HELP = `
@@ -23,6 +24,11 @@ lazy — CLI companion for Claude Code
     lazy gather <task>         Pre-hydrate context for a Claude Code session
     lazy watch                 Learn which files matter from git history
     lazy claudemd              Generate context file for Claude Code
+
+  Blueprints:
+    lazy bp list               Show available blueprints
+    lazy bp show <name>        Show blueprint steps
+    lazy bp run <name> <input> Execute a blueprint
 
   Persist:
     lazy remember <key> <val>  Store a fact across sessions
@@ -86,6 +92,23 @@ async function main() {
     case "claudemd":
       await claudemd(root);
       break;
+
+    // Blueprints
+    case "bp":
+    case "blueprint": {
+      const [sub, ...bpArgs] = args;
+      if (!sub || sub === "list") {
+        console.log(await blueprintList(root));
+      } else if (sub === "show") {
+        console.log(await blueprintShow(root, bpArgs[0]));
+      } else if (sub === "run") {
+        console.log(await blueprintRun(root, bpArgs[0], bpArgs.slice(1).join(" ")));
+      } else {
+        // Shorthand: lazy bp fix-bug "the description"
+        console.log(await blueprintRun(root, sub, bpArgs.join(" ")));
+      }
+      break;
+    }
 
     // Persist
     case "remember":

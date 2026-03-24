@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "lazy-fetch": {
+      "command": "node",
+      "args": ["dist/mcp-server.js"],
+      "cwd": "/Users/clemenshoenig/Documents/Software-Projects/Agentic-Coding-Framework"
+    }
+  }
+}

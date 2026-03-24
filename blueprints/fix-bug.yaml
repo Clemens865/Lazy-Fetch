@@ -1,4 +1,3 @@
-# Fix a bug: gather context, analyze, fix, validate, commit
 name: fix-bug
 description: Find and fix a bug with automated validation
 input: Bug description
@@ -14,11 +13,17 @@ steps:
 
   - name: analyze-bug
     type: prompt
-    prompt: "Analyze this bug: ${input}. Look at the gathered context files. Identify the root cause and explain your findings."
+    prompt: >
+      Analyze this bug: ${input}.
+      Look at the gathered context files and identify the root cause.
+      Be specific — cite file paths and line numbers.
 
   - name: implement-fix
     type: prompt
-    prompt: "Implement the fix for: ${input}. Make minimal changes — fix the bug, nothing else."
+    prompt: >
+      Implement the fix for: ${input}.
+      Make minimal changes — fix the bug, nothing else.
+      Do not refactor surrounding code.
 
   - name: typecheck
     type: run

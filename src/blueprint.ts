@@ -1,6 +1,7 @@
 import { execSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { join, relative } from "path";
+import { parse as parseYaml } from "yaml";
 import { ensureLazyDir, readLazyJson, writeLazyJson, writeLazyFile } from "./store.js";
 
 // --- Types ---
@@ -48,73 +49,66 @@ interface StepResult {
   retries?: number;
 }
 
-// --- YAML-lite parser (no dependency needed) ---
-// Handles our simple blueprint format without pulling in a YAML library
+// --- YAML parsing with validation ---
 
 function parseBlueprint(content: string): Blueprint {
-  const lines = content.split("\n");
-  const bp: Partial<Blueprint> = { steps: [] };
-  let currentStep: Partial<BlueprintStep> | null = null;
-  let inGate = false;
+  let raw: any;
+  try {
+    raw = parseYaml(content);
+  } catch (err: any) {
+    throw new Error(`Invalid YAML: ${err.message}`);
+  }
 
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    const trimmed = line.trim();
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Blueprint must be a YAML object");
+  }
+  if (!raw.name || typeof raw.name !== "string") {
+    throw new Error("Blueprint missing 'name' (string)");
+  }
+  if (!raw.description || typeof raw.description !== "string") {
+    throw new Error("Blueprint missing 'description' (string)");
+  }
+  if (!Array.isArray(raw.steps) || raw.steps.length === 0) {
+    throw new Error("Blueprint must have a non-empty 'steps' array");
+  }
 
-    if (trimmed.startsWith("#") || trimmed === "") continue;
+  const validTypes = new Set(["run", "prompt", "gate", "gather", "remember"]);
+  const steps: BlueprintStep[] = [];
 
-    // Top-level fields
-    if (line.startsWith("name:")) {
-      bp.name = line.slice(5).trim().replace(/^["']|["']$/g, "");
-    } else if (line.startsWith("description:")) {
-      bp.description = line.slice(12).trim().replace(/^["']|["']$/g, "");
-    } else if (line.startsWith("input:")) {
-      bp.input = line.slice(6).trim().replace(/^["']|["']$/g, "");
-    } else if (trimmed === "steps:") {
-      // start of steps
-    } else if (/^\s{2}- name:/.test(line) || /^\s{2}-\s+name:/.test(line)) {
-      // New step
-      if (currentStep && currentStep.name) {
-        bp.steps!.push(currentStep as BlueprintStep);
-      }
-      currentStep = { name: trimmed.replace(/^-\s*name:\s*/, "").replace(/^["']|["']$/g, "") };
-      inGate = false;
-    } else if (currentStep) {
-      // Step fields
-      if (/^\s{4}type:/.test(line)) {
-        currentStep.type = trimmed.replace(/^type:\s*/, "").replace(/^["']|["']$/g, "") as BlueprintStep["type"];
-      } else if (/^\s{4}command:/.test(line)) {
-        currentStep.command = trimmed.replace(/^command:\s*/, "").replace(/^["']|["']$/g, "");
-      } else if (/^\s{4}prompt:/.test(line)) {
-        currentStep.prompt = trimmed.replace(/^prompt:\s*/, "").replace(/^["']|["']$/g, "");
-      } else if (/^\s{4}task:/.test(line)) {
-        currentStep.task = trimmed.replace(/^task:\s*/, "").replace(/^["']|["']$/g, "");
-      } else if (/^\s{4}key:/.test(line)) {
-        currentStep.key = trimmed.replace(/^key:\s*/, "").replace(/^["']|["']$/g, "");
-      } else if (/^\s{4}value:/.test(line)) {
-        currentStep.value = trimmed.replace(/^value:\s*/, "").replace(/^["']|["']$/g, "");
-      } else if (/^\s{4}gate:/.test(line)) {
-        currentStep.gate = { on_fail: "stop" };
-        inGate = true;
-      } else if (inGate) {
-        if (/on_fail:/.test(trimmed)) {
-          currentStep.gate!.on_fail = trimmed.replace(/^on_fail:\s*/, "") as "retry" | "stop" | "skip";
-        } else if (/max_retries:/.test(trimmed)) {
-          currentStep.gate!.max_retries = parseInt(trimmed.replace(/^max_retries:\s*/, ""), 10);
-        }
-      }
+  for (let i = 0; i < raw.steps.length; i++) {
+    const s = raw.steps[i];
+    if (!s.name) throw new Error(`Step ${i + 1} missing 'name'`);
+    if (!s.type || !validTypes.has(s.type)) {
+      throw new Error(`Step "${s.name}" has invalid type "${s.type}". Valid: ${[...validTypes].join(", ")}`);
     }
+
+    const step: BlueprintStep = {
+      name: String(s.name),
+      type: s.type,
+    };
+
+    if (s.command != null) step.command = String(s.command);
+    if (s.prompt != null) step.prompt = String(s.prompt);
+    if (s.task != null) step.task = String(s.task);
+    if (s.key != null) step.key = String(s.key);
+    if (s.value != null) step.value = String(s.value);
+
+    if (s.gate && typeof s.gate === "object") {
+      step.gate = {
+        on_fail: s.gate.on_fail ?? "stop",
+        max_retries: s.gate.max_retries != null ? Number(s.gate.max_retries) : undefined,
+      };
+    }
+
+    steps.push(step);
   }
 
-  // Push last step
-  if (currentStep && currentStep.name) {
-    bp.steps!.push(currentStep as BlueprintStep);
-  }
-
-  if (!bp.name) throw new Error("Blueprint missing 'name'");
-  if (!bp.steps || bp.steps.length === 0) throw new Error("Blueprint has no steps");
-
-  return bp as Blueprint;
+  return {
+    name: raw.name,
+    description: raw.description,
+    input: raw.input ? String(raw.input) : undefined,
+    steps,
+  };
 }
 
 // --- Template substitution ---
@@ -133,6 +127,8 @@ function loadBlueprintFile(root: string, nameOrPath: string): Blueprint {
     join(root, "blueprints", `${nameOrPath}.yaml`),
     join(root, ".lazy", "blueprints", nameOrPath),
     join(root, ".lazy", "blueprints", `${nameOrPath}.yaml`),
+    join(root, "blueprints", `${nameOrPath}.yml`),
+    join(root, ".lazy", "blueprints", `${nameOrPath}.yml`),
   ];
 
   for (const p of candidates) {
@@ -336,14 +332,16 @@ export async function blueprintList(root: string): Promise<string> {
 
   for (const dir of dirs) {
     if (!existsSync(dir)) continue;
-    const files = readdirSync(dir).filter((f) => f.endsWith(".yaml"));
+    const files = readdirSync(dir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     for (const file of files) {
       try {
         const bp = parseBlueprint(readFileSync(join(dir, file), "utf-8"));
-        const stepTypes = bp.steps.map((s) => s.type === "run" ? "⚙" : s.type === "prompt" ? "🤖" : s.type === "gate" ? "🚦" : "📎").join("");
+        const stepTypes = bp.steps.map((s) =>
+          s.type === "run" ? "⚙" : s.type === "prompt" ? "🤖" : s.type === "gate" ? "🚦" : "📎"
+        ).join("");
         output.push(`  ${bp.name.padEnd(20)} ${stepTypes}  ${bp.description}`);
-      } catch {
-        output.push(`  ${file.padEnd(20)} (parse error)`);
+      } catch (err: any) {
+        output.push(`  ${file.padEnd(20)} (error: ${err.message.slice(0, 50)})`);
       }
     }
   }

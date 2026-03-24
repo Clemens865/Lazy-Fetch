@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="lazy fetch — minimum effort, maximum result" width="400" />
+</p>
+
 # lazy fetch
 
 **Minimum effort, maximum result.**

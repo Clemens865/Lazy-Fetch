@@ -18,6 +18,7 @@ lazy bp run     → ⚙  Execute a workflow (deterministic + agentic)
 lazy check      → ✓  Validate: tests, types, plan progress
 lazy remember   → 🧠 Persist knowledge across sessions
 lazy yolo       → 🚀 Autonomous mode: PRD → sprints → done
+lazy selftest   → 🔬 Verify everything works (22 built-in tests)
 ```
 
 ---
@@ -115,9 +116,10 @@ lazy yolo PRD.md
 ### Commands
 
 ```bash
-lazy yolo <prd-file>       # Parse PRD, create sprints, start autonomous mode
-lazy yolo status           # Show current sprint progress
-lazy yolo reset            # Clear yolo state and start over
+lazy yolo <prd-file>              # Parse PRD, create sprints, start autonomous mode
+lazy yolo <prd-file> --dry-run    # Preview sprint plan without writing state
+lazy yolo status                  # Show current sprint progress
+lazy yolo reset                   # Clear yolo state and start over
 ```
 
 Or use the slash command: `/project:yolo PRD.md`
@@ -239,8 +241,16 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | Command | What it does |
 |---------|-------------|
 | `lazy yolo <prd-file>` | Parse PRD into sprints, start autonomous execution |
+| `lazy yolo <prd> --dry-run` | Preview sprint plan without writing state |
 | `lazy yolo status` | Current sprint progress and overview |
 | `lazy yolo reset` | Clear yolo state |
+
+### Validate
+| Command | What it does |
+|---------|-------------|
+| `lazy selftest` | Run all self-validation checks (22 tests in isolated temp dir) |
+| `lazy selftest --quick` | Skip git and yolo tests (17 tests, ~20ms) |
+| `lazy selftest --report` | Output JSON metrics to `.lazy/selftest-report.json` |
 
 ### Other
 | Command | What it does |

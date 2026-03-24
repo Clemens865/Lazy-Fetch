@@ -13,6 +13,7 @@ lazy gather     → 🔍 Pre-hydrate context for Claude Code
 lazy bp run     → ⚙  Execute a workflow (deterministic + agentic)
 lazy check      → ✓  Validate: tests, types, plan progress
 lazy remember   → 🧠 Persist knowledge across sessions
+lazy yolo       → 🚀 Autonomous mode: PRD → sprints → done
 ```
 
 ---
@@ -46,6 +47,13 @@ lazy init
 
 `lazy init` scaffolds everything: `.lazy/` state directory, hooks, blueprints, slash commands, and MCP config.
 
+**Keeping up to date:**
+
+```bash
+lazy upgrade               # Update lazy-fetch itself from GitHub
+lazy init --update         # Refresh hooks, commands, blueprints in your project
+```
+
 <details>
 <summary>Alternative: npm global install</summary>
 
@@ -67,6 +75,74 @@ npm link
 ```
 
 </details>
+
+## Yolo Mode
+
+Point lazy fetch at a PRD and walk away. It breaks the project into sprints, then executes them autonomously — implement, validate, fix, advance, repeat — until the whole thing is done.
+
+```bash
+lazy yolo PRD.md
+```
+
+```
+  Sprint Plan:
+    > Sprint 1: Foundation & Setup (active) ◄
+      Sprint 2: Core Features (pending)
+      Sprint 3: Testing & Polish (pending)
+
+  Your Loop:
+    1. Check status → lazy_yolo_status
+    2. Gather context → lazy_gather
+    3. Implement tasks → write code
+    4. Validate → lazy_check
+    5. Advance → lazy_yolo_advance
+    6. Repeat until done
+```
+
+### How It Works
+
+1. **Parses the PRD** — `##` headings become sprints, bullet points become tasks. Unstructured PRDs get split into 3 default sprints (Foundation, Core Features, Polish).
+2. **Creates a sprint plan** — stored in `.lazy/yolo.json`, separate from `plan.json`.
+3. **Returns a master prompt** — detailed instructions that tell Claude Code to loop autonomously through the sprints using MCP tools.
+4. **Claude Code drives the loop** — gathers context, writes code, validates (typecheck + tests), and advances sprint by sprint.
+5. **Validation gates** — each sprint must pass `lazy check` before advancing. Up to 3 retries per sprint, then pauses for human intervention.
+6. **Snapshots** — automatic `pre-yolo` and `post-yolo` snapshots for rollback safety.
+
+### Commands
+
+```bash
+lazy yolo <prd-file>       # Parse PRD, create sprints, start autonomous mode
+lazy yolo status           # Show current sprint progress
+lazy yolo reset            # Clear yolo state and start over
+```
+
+Or use the slash command: `/project:yolo PRD.md`
+
+### Example PRD
+
+```markdown
+# Task Tracker CLI
+
+A command-line task tracker built with TypeScript.
+
+## Setup & Foundation
+- Initialize Node.js project with TypeScript
+- Define core types: Task, Priority, Status
+- Set up CLI entry point
+
+## Core Features
+- Implement `add` command with priority flag
+- Implement `list` command with formatted output
+- Implement `done` command to mark tasks complete
+- Store tasks in a local JSON file
+
+## Testing & Polish
+- Add unit tests for task operations
+- Add input validation and error messages
+- Handle edge cases
+```
+
+Running `lazy yolo PRD.md` on this creates 3 sprints with those exact tasks, then Claude Code builds the whole thing autonomously.
 
 ## The Loop
 
@@ -108,7 +184,11 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | `lazy add <task> [phase]` | Append a task to the plan (phase auto-inferred from wording) |
 | `lazy status` | Phase-grouped view with ◄ current phase indicator |
 | `lazy update <task> <status>` | Mark progress: `todo`, `active`, `done`, `stuck` |
+| `lazy done <task>` | Shorthand for `update <task> done` |
+| `lazy stuck <task>` | Shorthand for `update <task> stuck` |
+| `lazy next` | Show the next task and gather context for it |
 | `lazy check` | Run tests, lint, typecheck — plus plan progress |
+| `lazy remove <task>` | Delete a task from the plan |
 
 ### Context
 | Command | What it does |
@@ -133,6 +213,31 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | `lazy recall [key]` | Retrieve stored knowledge (fuzzy search) |
 | `lazy journal [entry]` | Append-only decision log |
 | `lazy snapshot [name]` | Save current state (plan + memory) |
+
+### Yolo
+| Command | What it does |
+|---------|-------------|
+| `lazy yolo <prd-file>` | Parse PRD into sprints, start autonomous execution |
+| `lazy yolo status` | Current sprint progress and overview |
+| `lazy yolo reset` | Clear yolo state |
+
+### Other
+| Command | What it does |
+|---------|-------------|
+| `lazy init` | Initialize `.lazy/` with full scaffolding |
+| `lazy init --update` | Refresh hooks, commands, blueprints to latest version |
+| `lazy upgrade` | Update lazy-fetch itself from GitHub |
+
+## Slash Commands
+
+All commands are available as Claude Code slash commands after `lazy init`:
+
+```
+/project:read      /project:plan      /project:status    /project:gather
+/project:check     /project:next      /project:done      /project:remember
+/project:recall    /project:journal   /project:context   /project:snapshot
+/project:blueprint /project:yolo      /project:init
+```
 
 ## Blueprints
 
@@ -168,6 +273,8 @@ lazy bp run fix-bug "login returns 500 on empty password"
   Step 6/7: run-tests (run)             ← runs automatically, retries on failure
   Step 7/7: remember-fix (remember)     ← runs automatically
 ```
+
+Blueprints auto-detect your project type (TypeScript, Python, Rust, Go) for validation steps.
 
 ### Writing Your Own
 
@@ -211,19 +318,19 @@ Variables: `${input}` is replaced with the blueprint input. `${step_N_output}` c
 
 ## MCP Server
 
-Lazy Fetch runs as an MCP server, giving Claude Code **15 native tools**:
+Lazy Fetch runs as an MCP server, giving Claude Code **23 native tools**:
 
 ```
 lazy_read, lazy_plan, lazy_add, lazy_status, lazy_update, lazy_check,
-lazy_context, lazy_gather, lazy_remember, lazy_recall, lazy_journal,
-lazy_snapshot, lazy_blueprint_list, lazy_blueprint_show, lazy_blueprint_run
+lazy_context, lazy_gather, lazy_next, lazy_remove, lazy_reset_plan,
+lazy_watch, lazy_claudemd, lazy_remember, lazy_recall, lazy_journal,
+lazy_snapshot, lazy_blueprint_list, lazy_blueprint_show, lazy_blueprint_run,
+lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance
 ```
 
 Configured in `.mcp.json`. Claude Code can call these directly — no terminal switching needed.
 
-Example: Claude Code can call `lazy_gather` to find relevant files, `lazy_remember` to store a decision, and `lazy_blueprint_run` to execute a workflow — all within the conversation.
-
-## Hooks (Autonomous Mode)
+## Hooks
 
 Lazy Fetch integrates with Claude Code via hooks in `.claude/settings.json`:
 
@@ -234,7 +341,7 @@ Lazy Fetch integrates with Claude Code via hooks in `.claude/settings.json`:
 | **PreCompact** | Preserves plan + memory through context compression |
 | **Stop** | Auto-journals changes, updates file access patterns |
 
-Hooks are pre-configured. They activate on session start.
+Hooks are pre-configured by `lazy init`.
 
 ## Symbol Index
 
@@ -256,12 +363,19 @@ Currently regex-based (fast, zero dependencies). Inspired by [Aider's repo-map](
   plan.md            # Human-readable plan (auto-generated)
   memory.json        # Key-value persistent store
   journal.md         # Append-only decision log
+  yolo.json          # Yolo mode sprint state
   CONTEXT.md         # Generated context for Claude Code
   context/
     symbols.json     # Cached symbol index
     access.json      # File access patterns
   snapshots/         # Point-in-time state captures
   runs/              # Blueprint execution logs
+hooks/               # Hook scripts for Claude Code events
+blueprints/          # YAML workflow definitions
+.claude/
+  settings.json      # Hook configuration
+  commands/          # Slash commands
+.mcp.json            # MCP server configuration
 ```
 
 ## Research
@@ -292,14 +406,7 @@ Plus 6 more. See [cross-cutting analysis](research/analysis/cross-cutting-patter
 3. **Persistence matters.** Claude Code forgets between sessions. We don't.
 4. **The loop keeps you honest.** Read → plan → implement → validate → document.
 5. **Deterministic where possible, agentic where needed.** Blueprints automate everything that doesn't require judgment.
-
-## What's Next
-
-- [ ] Tree-sitter for AST-level symbol extraction
-- [ ] Semantic search over the symbol index
-- [ ] Cost tracking per task
-- [ ] Blueprint chaining — one blueprint triggers another
-- [ ] `lazy diff` — smart diff summary for Claude Code context
+6. **Let the agent be the agent.** Yolo mode doesn't build a loop runner — it gives Claude Code a plan and tools, then gets out of the way.
 
 ## License
 

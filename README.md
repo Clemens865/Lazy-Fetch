@@ -78,7 +78,7 @@ npm link
 
 ## Yolo Mode
 
-Point lazy fetch at a PRD and walk away. It breaks the project into sprints, then executes them autonomously — implement, validate, fix, advance, repeat — until the whole thing is done.
+Point lazy fetch at a PRD and walk away. It breaks the project into sprints, then executes them autonomously using **blueprints** — gather context, implement via `add-feature`/`fix-bug`, validate, advance — until the whole thing is done.
 
 ```bash
 lazy yolo PRD.md
@@ -258,7 +258,14 @@ All commands are available as Claude Code slash commands after `lazy init`:
 
 ## Blueprints
 
-YAML-defined workflows that mix **deterministic** steps (shell commands, gates) with **agentic** steps (prompts for Claude Code). Inspired by Stripe's blueprint system and Karpathy's AutoResearch loop.
+Pre-built workflows for common tasks. Each blueprint handles the full cycle: **gather context → checkpoint → implement → validate → remember**. Claude Code automatically suggests the right blueprint based on what you're doing.
+
+| Blueprint | When it triggers | What it does |
+|-----------|-----------------|-------------|
+| `fix-bug` | Bug, error, crash, "doesn't work" | Gather → checkpoint → analyze → fix → typecheck → test → remember |
+| `add-feature` | New functionality, "add", "implement" | Gather → research → plan → implement → typecheck → test → document |
+| `experiment` | "Try", "what if", prototype, spike | Gather → branch → implement → validate → evaluate (keep or discard) |
+| `review-code` | "Review", audit, code quality | Gather → diff → typecheck → review → suggest improvements |
 
 ```bash
 lazy bp list

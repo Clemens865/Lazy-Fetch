@@ -3,6 +3,38 @@ import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join, relative, extname } from "path";
 import { readLazyFile, writeLazyFile, readLazyJson, writeLazyJson, ensureLazyDir, writeProjectFile, readProjectFile } from "./store.js";
 
+// --- .gitignore-aware ignore patterns ---
+
+let _cachedIgnore: Set<string> | null = null;
+let _cachedRoot: string | null = null;
+
+function loadGitignorePatterns(root: string): string[] {
+  try {
+    const content = readFileSync(join(root, ".gitignore"), "utf-8");
+    return content.split("\n")
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith("#"))
+      .map(l => l.replace(/\/$/, ""))  // strip trailing slash
+      .filter(l => !l.includes("*") && !l.startsWith("!"));  // only simple dir/file names for now
+  } catch {
+    return [];
+  }
+}
+
+function getIgnoreDirs(root: string): Set<string> {
+  if (_cachedRoot === root && _cachedIgnore) return _cachedIgnore;
+  const base = new Set([
+    "node_modules", ".git", ".lazy", "dist", "build", ".next",
+    "__pycache__", ".venv", "venv", ".cache", "coverage",
+  ]);
+  for (const p of loadGitignorePatterns(root)) {
+    base.add(p);
+  }
+  _cachedIgnore = base;
+  _cachedRoot = root;
+  return base;
+}
+
 // --- Symbol extraction patterns (lightweight repo-map) ---
 
 interface Symbol {
@@ -100,12 +132,13 @@ function inferKind(matchStr: string): Symbol["kind"] {
 
 function buildSymbolMap(root: string): Symbol[] {
   const allSymbols: Symbol[] = [];
+  const ignoreDirs = getIgnoreDirs(root);
 
   function walk(dir: string): void {
     try {
       const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
-        if (IGNORE_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
+        if (ignoreDirs.has(entry.name) || entry.name.startsWith(".")) continue;
         const full = join(dir, entry.name);
         if (entry.isDirectory()) {
           walk(full);
@@ -131,6 +164,12 @@ export async function context(root: string, query?: string): Promise<void> {
   } else {
     await showRepoMap(root);
   }
+
+  // Silently regenerate .lazy/CONTEXT.md
+  const origLog = console.log;
+  console.log = () => {};
+  try { await claudemd(root); } catch {}
+  finally { console.log = origLog; }
 }
 
 export async function gather(root: string, task: string): Promise<void> {
@@ -345,7 +384,7 @@ async function showRepoMap(root: string): Promise<void> {
   console.log("\n  Repo Map");
   console.log("─".repeat(55));
 
-  const tree = buildTree(root, 3);
+  const tree = buildTree(root, 3, root);
   printTree(tree, "  ");
 
   console.log("─".repeat(55));
@@ -414,20 +453,16 @@ interface TreeNode {
   children: TreeNode[];
 }
 
-const IGNORE_DIRS = new Set([
-  "node_modules", ".git", ".lazy", "dist", "build", ".next",
-  "__pycache__", ".venv", "venv", ".cache", "coverage",
-]);
-
-function buildTree(dir: string, maxDepth: number, depth = 0): TreeNode {
+function buildTree(dir: string, maxDepth: number, root: string, depth = 0): TreeNode {
   const name = dir.split("/").pop() ?? dir;
   const node: TreeNode = { name, isDir: true, children: [] };
   if (depth >= maxDepth) return node;
+  const ignoreDirs = getIgnoreDirs(root);
 
   try {
     const entries = readdirSync(dir, { withFileTypes: true })
       .filter((e: any) => !e.name.startsWith("."))
-      .filter((e: any) => !IGNORE_DIRS.has(e.name))
+      .filter((e: any) => !ignoreDirs.has(e.name))
       .sort((a: any, b: any) => {
         if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
         return a.name.localeCompare(b.name);
@@ -436,7 +471,7 @@ function buildTree(dir: string, maxDepth: number, depth = 0): TreeNode {
     for (const entry of entries) {
       const fullPath = join(dir, entry.name);
       if (entry.isDirectory()) {
-        node.children.push(buildTree(fullPath, maxDepth, depth + 1));
+        node.children.push(buildTree(fullPath, maxDepth, root, depth + 1));
       } else {
         node.children.push({ name: entry.name, isDir: false, children: [] });
       }
@@ -459,12 +494,13 @@ function printTree(node: TreeNode, prefix: string, isLast = true): void {
 function findFilesByName(root: string, query: string): string[] {
   const results: string[] = [];
   const q = query.toLowerCase();
+  const ignoreDirs = getIgnoreDirs(root);
 
   function walk(dir: string): void {
     try {
       const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
-        if (IGNORE_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
+        if (ignoreDirs.has(entry.name) || entry.name.startsWith(".")) continue;
         const full = join(dir, entry.name);
         if (entry.isDirectory()) walk(full);
         else if (entry.name.toLowerCase().includes(q)) results.push(full);
@@ -479,15 +515,16 @@ function findFilesByName(root: string, query: string): string[] {
 function grepFiles(root: string, query: string): string[] {
   try {
     const escaped = query.replace(/"/g, '\\"').replace(/[$()|*+?{\\]/g, '\\$&');
+    const ignoreDirs = getIgnoreDirs(root);
+    const excludeArgs = [...ignoreDirs].map(d => `--exclude-dir='${d}'`).join(" ");
     const output = execSync(
-      `grep -rl --include='*.ts' --include='*.js' --include='*.py' --include='*.rs' --include='*.go' --include='*.rb' --include='*.md' -i "${escaped}" . 2>/dev/null || true`,
+      `grep -rl ${excludeArgs} --include='*.ts' --include='*.js' --include='*.py' --include='*.rs' --include='*.go' --include='*.rb' --include='*.md' -i "${escaped}" . 2>/dev/null || true`,
       { cwd: root, encoding: "utf-8", timeout: 5000 }
     );
     return output
       .split("\n")
       .filter(Boolean)
-      .map((f) => join(root, f.replace(/^\.\//, "")))
-      .filter((f) => !f.includes("node_modules") && !f.includes(".git"));
+      .map((f) => join(root, f.replace(/^\.\//, "")));
   } catch {
     return [];
   }
@@ -530,6 +567,7 @@ function getRepoStats(root: string): { files: number; dirs: number; languages: s
   let files = 0;
   let dirs = 0;
   const exts = new Set<string>();
+  const ignoreDirs = getIgnoreDirs(root);
 
   const extToLang: Record<string, string> = {
     ".ts": "TypeScript", ".js": "JavaScript", ".py": "Python",
@@ -541,7 +579,7 @@ function getRepoStats(root: string): { files: number; dirs: number; languages: s
     try {
       const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
-        if (IGNORE_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
+        if (ignoreDirs.has(entry.name) || entry.name.startsWith(".")) continue;
         const full = join(dir, entry.name);
         if (entry.isDirectory()) { dirs++; walk(full); }
         else {

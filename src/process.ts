@@ -177,6 +177,80 @@ export async function plan(root: string, goal: string): Promise<void> {
   console.log("\nUse 'lazy update <task> active' to start working.");
 }
 
+export async function planFromFile(root: string, filePath: string): Promise<void> {
+  const { existsSync, readFileSync } = await import("fs");
+  const { resolve } = await import("path");
+
+  const fullPath = resolve(root, filePath);
+  if (!existsSync(fullPath)) {
+    process.exitCode = 1;
+    console.error(`File not found: ${filePath}`);
+    return;
+  }
+
+  const existing = loadPlan(root);
+  if (existing) {
+    const done = existing.tasks.filter((t) => t.status === "done").length;
+    console.log(`Active plan: "${existing.goal}" (${done}/${existing.tasks.length} done)`);
+    console.log("Use 'lazy plan --reset' to start fresh.");
+    return;
+  }
+
+  const content = readFileSync(fullPath, "utf-8");
+  const lines = content.split("\n");
+
+  // Extract goal from first heading, or use filename
+  const headingLine = lines.find(l => /^#\s+/.test(l));
+  const goal = headingLine?.replace(/^#+\s*/, "").trim() || filePath.replace(/\.\w+$/, "");
+
+  const now = new Date().toISOString();
+  const newPlan: Plan = { goal, created: now, updated: now, tasks: [] };
+
+  // Parse bullet points as tasks
+  for (const line of lines) {
+    const match = line.match(/^\s*[-*]\s+(.+)/);
+    if (match) {
+      const title = match[1].trim();
+      if (title.length < 3) continue;
+
+      newPlan.tasks.push({
+        id: makeId(title),
+        title,
+        status: "todo",
+        phase: inferPhase(title),
+        created: now,
+        updated: now,
+      });
+    }
+  }
+
+  if (newPlan.tasks.length === 0) {
+    process.exitCode = 1;
+    console.error("No tasks found. Use bullet points (- task) in the file.");
+    return;
+  }
+
+  // Deduplicate IDs
+  const seen = new Set<string>();
+  for (const t of newPlan.tasks) {
+    if (seen.has(t.id)) {
+      let n = 2;
+      while (seen.has(`${t.id}-${n}`)) n++;
+      t.id = `${t.id}-${n}`;
+    }
+    seen.add(t.id);
+  }
+
+  savePlan(root, newPlan);
+  console.log(`\nPlan created from ${filePath}: "${goal}"`);
+  console.log(`${newPlan.tasks.length} task(s):\n`);
+  for (let i = 0; i < newPlan.tasks.length; i++) {
+    const t = newPlan.tasks[i];
+    console.log(`  ${i + 1}. ${PHASE_ICON[t.phase]} [ ] ${t.title}`);
+  }
+  console.log("\nUse 'lazy done 1' or 'lazy update <task> active' to start.");
+}
+
 export async function add(root: string, title: string, phase?: string): Promise<void> {
   if (!title.trim()) {
     process.exitCode = 1;
@@ -237,7 +311,8 @@ export async function status(root: string): Promise<void> {
     console.log(`\n  ${PHASE_ICON[phase]} ${phase.toUpperCase()}${marker}`);
 
     for (const t of phaseTasks) {
-      console.log(`    ${STATUS_ICON[t.status]} ${t.title}`);
+      const idx = p.tasks.indexOf(t) + 1;
+      console.log(`    ${idx}. ${STATUS_ICON[t.status]} ${t.title}`);
     }
   }
 
@@ -274,6 +349,22 @@ export async function update(root: string, taskQuery: string, newStatus: string)
   }
 
   const query = taskQuery.toLowerCase();
+
+  // Support numeric index (1-based)
+  const numIndex = parseInt(query, 10);
+  if (!isNaN(numIndex) && numIndex >= 1 && numIndex <= p.tasks.length) {
+    const task = p.tasks[numIndex - 1];
+    task.status = newStatus as Task["status"];
+    task.updated = new Date().toISOString();
+    savePlan(root, p);
+    const next = p.tasks.find((t) => t.status === "todo");
+    console.log(`Updated: "${task.title}" → ${newStatus}`);
+    if (newStatus === "done" && next) {
+      console.log(`Next up: ${PHASE_ICON[next.phase]} "${next.title}"`);
+    }
+    return;
+  }
+
   const matches = p.tasks.filter(
     (t) => t.id === query || t.title.toLowerCase().includes(query)
   );
@@ -328,6 +419,16 @@ export async function remove(root: string, taskQuery: string): Promise<void> {
   }
 
   const query = taskQuery.toLowerCase();
+
+  // Support numeric index (1-based)
+  const numIndex = parseInt(query, 10);
+  if (!isNaN(numIndex) && numIndex >= 1 && numIndex <= p.tasks.length) {
+    const removed = p.tasks.splice(numIndex - 1, 1)[0];
+    savePlan(root, p);
+    console.log(`Removed: "${removed.title}"`);
+    return;
+  }
+
   const matches = p.tasks.filter(
     (t) => t.id === query || t.title.toLowerCase().includes(query)
   );
@@ -537,9 +638,17 @@ export async function resetPlan(root: string): Promise<void> {
     console.log("No active plan to reset.");
     return;
   }
+
+  // Archive the completed plan
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const archiveName = `plan-${timestamp}.json`;
+  writeLazyJson(root, p, "archive", archiveName);
+
   writeLazyFile(root, "null\n", "plan.json");
   writeLazyFile(root, "", "plan.md");
-  console.log(`Plan "${p.goal}" cleared. Use 'lazy plan <goal>' to start fresh.`);
+  console.log(`Plan "${p.goal}" archived and cleared.`);
+  console.log(`  Archived to: .lazy/archive/${archiveName}`);
+  console.log("Use 'lazy plan <goal>' to start fresh.");
 }
 
 // --- Helpers ---

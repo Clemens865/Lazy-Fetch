@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { plan, status, update, check, add, read, next, remove, resetPlan } from "./process.js";
+import { plan, planFromFile, status, update, check, add, read, next, remove, resetPlan } from "./process.js";
 import { remember, recall, journal, snapshot } from "./persist.js";
 import { context, gather, watch, claudemd } from "./context.js";
 import { blueprintRun, blueprintList, blueprintShow } from "./blueprint.js";
@@ -13,6 +13,7 @@ lazy — CLI companion for Claude Code
   The Loop (read → plan → implement → validate → document):
     lazy read                  Get up to date — git, plan, memory
     lazy plan <goal>           Break a goal into phased steps
+    lazy plan --file <file>    Import tasks from a markdown file
     lazy add <task> [phase]    Add a task to the current plan
     lazy status                Where are we? What's next?
     lazy update <task> <status>  Mark progress (todo|active|done|stuck)
@@ -175,6 +176,42 @@ async function main() {
       console.log(forceUpdate ? "  Updated .mcp.json" : "  Created .mcp.json");
     }
 
+    // CLAUDE.md — inject lazy-fetch section into user's project
+    const claudeMdPath = join(cwd, "CLAUDE.md");
+    const templatePath = join(projectRoot, "templates", "CLAUDE_PROJECT.md");
+    if (existsSync(templatePath)) {
+      const template = readFileSync(templatePath, "utf-8");
+      const SECTION_START = "## Lazy Fetch (CLI Companion)";
+
+      if (!existsSync(claudeMdPath)) {
+        // No CLAUDE.md — create one with the template
+        writeFileSync(claudeMdPath, template, "utf-8");
+        console.log("  Created CLAUDE.md with lazy-fetch guidance");
+      } else {
+        const existing = readFileSync(claudeMdPath, "utf-8");
+        if (!existing.includes("Lazy Fetch")) {
+          // CLAUDE.md exists but has no lazy-fetch section — append
+          const separator = existing.endsWith("\n") ? "\n" : "\n\n";
+          writeFileSync(claudeMdPath, existing + separator + template, "utf-8");
+          console.log("  Appended lazy-fetch section to CLAUDE.md");
+        } else if (forceUpdate) {
+          // Replace existing lazy-fetch section with latest template
+          const startIdx = existing.indexOf(SECTION_START);
+          // Find the next ## heading after the lazy-fetch section (or end of file)
+          const afterStart = existing.indexOf("\n## ", startIdx + SECTION_START.length);
+          const before = existing.substring(0, startIdx);
+          const after = afterStart !== -1 ? existing.substring(afterStart + 1) : "";
+          const merged = after
+            ? before + template + (template.endsWith("\n") ? "\n" : "\n\n") + after
+            : before + template;
+          writeFileSync(claudeMdPath, merged, "utf-8");
+          console.log("  Updated lazy-fetch section in CLAUDE.md");
+        } else {
+          console.log("  CLAUDE.md already contains lazy-fetch section (skip)");
+        }
+      }
+    }
+
     if (!forceUpdate) {
       console.log(`
   Project structure:
@@ -187,6 +224,7 @@ async function main() {
       settings.json      Hook configuration
       commands/           Slash commands (/project:read, etc.)
     .mcp.json            MCP server config
+    CLAUDE.md            Lazy-fetch guidance for Claude Code
 
   Run 'lazy read' to get started.
   After updating lazy-fetch, run 'lazy init --update' to refresh.`);
@@ -231,6 +269,10 @@ async function main() {
       break;
     case "plan":
       if (args[0] === "--reset") { await resetPlan(root); break; }
+      if (args[0] === "--file" || args[0] === "-f") {
+        await planFromFile(root, args[1]);
+        break;
+      }
       await plan(root, args.join(" "));
       break;
     case "add": {

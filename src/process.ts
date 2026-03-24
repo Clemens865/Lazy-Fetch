@@ -278,6 +278,54 @@ export async function update(root: string, taskQuery: string, newStatus: string)
   }
 }
 
+export async function remove(root: string, taskQuery: string): Promise<void> {
+  if (!taskQuery) {
+    console.error("Usage: lazy remove <task>");
+    return;
+  }
+
+  const p = loadPlan(root);
+  if (!p) {
+    console.error("No active plan.");
+    return;
+  }
+
+  const query = taskQuery.toLowerCase();
+  const idx = p.tasks.findIndex(
+    (t) => t.id === query || t.title.toLowerCase().includes(query)
+  );
+
+  if (idx === -1) {
+    console.error(`No task matching "${taskQuery}"`);
+    return;
+  }
+
+  const removed = p.tasks.splice(idx, 1)[0];
+  savePlan(root, p);
+  console.log(`Removed: "${removed.title}"`);
+}
+
+export async function next(root: string): Promise<void> {
+  const p = loadPlan(root);
+  if (!p) {
+    console.log("No active plan. Use 'lazy plan <goal>' to create one.");
+    return;
+  }
+
+  const nextTask = p.tasks.find((t) => t.status === "todo");
+  if (!nextTask) {
+    console.log("All tasks done! Use 'lazy plan --reset' to start fresh.");
+    return;
+  }
+
+  console.log(`\n  Next up: ${PHASE_ICON[nextTask.phase]} ${nextTask.title}`);
+  console.log("─".repeat(55));
+
+  // Auto-gather context for the next task
+  const { gather } = await import("./context.js");
+  await gather(root, nextTask.title);
+}
+
 export async function check(root: string): Promise<void> {
   console.log("\n  Health Check");
   console.log("─".repeat(55));
@@ -291,9 +339,20 @@ export async function check(root: string): Promise<void> {
 
   const checks: CheckDef[] = [
     { name: "Git", cmd: "git status --porcelain", parse: parseGit },
+    // TypeScript / JavaScript
     { name: "TypeScript", cmd: "npx tsc --noEmit 2>&1", detect: "tsconfig.json" },
     { name: "ESLint", cmd: "npx eslint . --max-warnings=0 2>&1", detect: ".eslintrc" },
-    { name: "Tests", cmd: "npm test 2>&1", detect: "package.json" },
+    { name: "Tests (npm)", cmd: "npm test 2>&1", detect: "package.json" },
+    // Python
+    { name: "Python (ruff)", cmd: "ruff check . 2>&1", detect: "pyproject.toml" },
+    { name: "Python (mypy)", cmd: "mypy . 2>&1", detect: "mypy.ini" },
+    { name: "Tests (pytest)", cmd: "pytest 2>&1", detect: "pytest.ini" },
+    // Rust
+    { name: "Rust (check)", cmd: "cargo check 2>&1", detect: "Cargo.toml" },
+    { name: "Tests (cargo)", cmd: "cargo test 2>&1", detect: "Cargo.toml" },
+    // Go
+    { name: "Go (vet)", cmd: "go vet ./... 2>&1", detect: "go.mod" },
+    { name: "Tests (go)", cmd: "go test ./... 2>&1", detect: "go.mod" },
   ];
 
   for (const c of checks) {

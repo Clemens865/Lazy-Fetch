@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { plan, status, update, check, add, read, resetPlan } from "./process.js";
+import { plan, status, update, check, add, read, next, remove, resetPlan } from "./process.js";
 import { remember, recall, journal, snapshot } from "./persist.js";
 import { context, gather, watch, claudemd } from "./context.js";
 import { blueprintRun, blueprintList, blueprintShow } from "./blueprint.js";
@@ -16,6 +16,9 @@ lazy — CLI companion for Claude Code
     lazy add <task> [phase]    Add a task to the current plan
     lazy status                Where are we? What's next?
     lazy update <task> <status>  Mark progress (todo|active|done|stuck)
+    lazy done <task>           Shorthand for update <task> done
+    lazy stuck <task>          Shorthand for update <task> stuck
+    lazy next                  Show next task and gather context for it
     lazy check                 Validate — tests, lint, types, plan progress
 
   Context:
@@ -74,6 +77,19 @@ async function main() {
       break;
     case "update":
       await update(root, args[0], args[1]);
+      break;
+    case "done":
+      await update(root, args[0], "done");
+      break;
+    case "stuck":
+      await update(root, args[0], "stuck");
+      break;
+    case "next":
+      await next(root);
+      break;
+    case "remove":
+    case "rm":
+      await remove(root, args.join(" "));
       break;
     case "check":
       await check(root);

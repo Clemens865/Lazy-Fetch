@@ -495,7 +495,13 @@ function extractKeywords(task: string): string[] {
     "make", "fix", "update", "change", "modify", "use", "using",
   ]);
 
-  return task
+  // Split camelCase and snake_case before extracting
+  const expanded = task
+    .replace(/([a-z])([A-Z])/g, "$1 $2")  // camelCase → camel Case
+    .replace(/_/g, " ")                     // snake_case → snake case
+    .replace(/-/g, " ");                    // kebab-case → kebab case
+
+  return expanded
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)

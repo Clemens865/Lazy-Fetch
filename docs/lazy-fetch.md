@@ -66,12 +66,21 @@ This isn't a rigid process — it's a compass. Each task gets auto-assigned to a
 lazy read                    # What changed? Where are we? What do we know?
 lazy status                  # Full plan view, grouped by phase
 lazy check                   # Tests passing? Types clean? Plan on track?
+lazy next                    # Show next task and auto-gather context for it
 ```
 
 `lazy read` is the first thing you run in a new session. It shows:
 - Git branch, recent commits, uncommitted changes
 - Plan progress and current phase
 - Stored memory from previous sessions
+
+`lazy check` auto-detects your project type and runs the appropriate checks:
+- **TypeScript/JavaScript**: tsc, ESLint, npm test
+- **Python**: ruff, mypy, pytest
+- **Rust**: cargo check, cargo test
+- **Go**: go vet, go test
+
+Placeholder test scripts (e.g., `echo "no test specified"`) are detected and skipped.
 
 ### Planning Work
 
@@ -86,13 +95,16 @@ lazy plan "add user authentication"
 
 lazy plan "fix login bug, add rate limiting, write tests"
 # Multiple goals → one task per item, phases auto-inferred
+# (only splits when each part has 2+ words to avoid breaking sentences)
 
 lazy add "add JWT token refresh" implement
-# Append a task to the current plan (phase optional, auto-inferred from wording)
+# Append a task (phase optional, auto-inferred from wording)
 
 lazy update "authentication" active     # Mark a task as in-progress
-lazy update "authentication" done       # Mark it done → shows "next up"
-lazy update "rate limiting" stuck       # Flag a blocker
+lazy done "authentication"              # Shorthand → shows "next up"
+lazy stuck "rate limiting"              # Flag a blocker
+lazy remove "old task"                  # Delete a task (alias: lazy rm)
+lazy next                               # Show next task + gather context
 
 lazy plan --reset                       # Clear the plan, start fresh
 ```
@@ -117,7 +129,7 @@ lazy claudemd                # Generate .lazy/CONTEXT.md for Claude Code
 **`lazy context`** builds a lightweight repo-map. It extracts symbols (functions, classes, types, interfaces) from TypeScript, JavaScript, Python, Rust, Go, and Ruby using regex patterns. Shows file tree + key symbols per file.
 
 **`lazy gather`** is the power move. Give it a task description and it:
-1. Extracts keywords from the task description
+1. Extracts keywords (handles camelCase, snake_case, and kebab-case splitting)
 2. Searches file names for matches
 3. Searches file contents via grep
 4. Searches the symbol index for matching function/class/type names
@@ -238,6 +250,16 @@ steps:
 
 Blueprint runs are logged to `.lazy/runs/` for review.
 
+#### Self-Improvement Blueprint
+
+The `improve` blueprint applies the AutoResearch pattern to lazy fetch itself:
+
+```bash
+lazy bp run improve auto
+```
+
+It reads `program.md` (a prioritized list of improvements), checkpoints the codebase, returns a prompt for Claude Code to implement one improvement, then validates with build + CLI checks. See `program.md` for the full list of improvement areas.
+
 ### Persisting Knowledge
 
 ```bash
@@ -342,6 +364,17 @@ No config needed. `lazy init` is optional — commands auto-create `.lazy/` when
 
 ---
 
+## Testing
+
+```bash
+npm test        # Runs 22 smoke tests
+lazy check      # Includes test results in health check
+```
+
+Tests run in an isolated `/tmp` directory with a fresh git repo. Every core command is covered: plan, status, update, done, stuck, add, remove, next, remember, recall, journal, context, gather, check, snapshot, blueprints, and plan reset.
+
+---
+
 ## Design Principles
 
 These emerged from analyzing 18 frameworks:
@@ -390,8 +423,9 @@ Full research available in `research/frameworks/` (18 analyses) and `research/an
 - [ ] Tree-sitter for AST-level symbol extraction
 - [ ] Semantic search over the symbol index
 - [ ] Cost tracking per task
-- [ ] Blueprint chaining — one blueprint triggers another
 - [ ] `lazy diff` — smart diff summary for Claude Code context
+- [ ] Blueprint chaining (when real usage demands it)
+- [ ] More improvement iterations via `lazy bp run improve auto`
 
 ---
 

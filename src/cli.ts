@@ -69,9 +69,15 @@ async function main() {
       if (args[0] === "--reset") { await resetPlan(root); break; }
       await plan(root, args.join(" "));
       break;
-    case "add":
-      await add(root, args.slice(0, -1).join(" ") || args[0], args.length > 1 ? args[args.length - 1] : undefined);
+    case "add": {
+      const validPhases = ["read", "plan", "implement", "validate", "document"];
+      const lastArg = args[args.length - 1];
+      const hasPhase = args.length > 1 && validPhases.includes(lastArg);
+      const title = hasPhase ? args.slice(0, -1).join(" ") : args.join(" ");
+      const phase = hasPhase ? lastArg : undefined;
+      await add(root, title, phase);
       break;
+    }
     case "status":
       await status(root);
       break;

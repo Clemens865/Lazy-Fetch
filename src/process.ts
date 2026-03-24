@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { ensureLazyDir, readLazyJson, writeLazyJson, readLazyFile, writeLazyFile } from "./store.js";
 
@@ -137,12 +137,15 @@ export async function plan(root: string, goal: string): Promise<void> {
   const now = new Date().toISOString();
   const newPlan: Plan = { goal, created: now, updated: now, tasks: [] };
 
+  // Only split on commas/and if each part has 2+ words (avoids splitting sentences)
   const parts = goal
     .split(/,\s*|\s+and\s+/i)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (parts.length > 1) {
+  const allSubstantial = parts.length > 1 && parts.every((p) => p.split(/\s+/).length >= 2);
+
+  if (allSubstantial) {
     for (const part of parts) {
       newPlan.tasks.push({
         id: makeId(part),
@@ -334,6 +337,7 @@ export async function check(root: string): Promise<void> {
     name: string;
     cmd: string;
     detect?: string;
+    skip?: (root: string) => boolean;
     parse?: (output: string) => string;
   }
 
@@ -342,7 +346,14 @@ export async function check(root: string): Promise<void> {
     // TypeScript / JavaScript
     { name: "TypeScript", cmd: "npx tsc --noEmit 2>&1", detect: "tsconfig.json" },
     { name: "ESLint", cmd: "npx eslint . --max-warnings=0 2>&1", detect: ".eslintrc" },
-    { name: "Tests (npm)", cmd: "npm test 2>&1", detect: "package.json" },
+    { name: "Tests (npm)", cmd: "npm test 2>&1", detect: "package.json", skip: (r) => {
+      // Skip if test script is a placeholder
+      try {
+        const pkg = JSON.parse(readFileSync(join(r, "package.json"), "utf-8"));
+        const testCmd = pkg.scripts?.test ?? "";
+        return !testCmd || testCmd.includes("no test specified") || testCmd === "echo";
+      } catch { return true; }
+    }},
     // Python
     { name: "Python (ruff)", cmd: "ruff check . 2>&1", detect: "pyproject.toml" },
     { name: "Python (mypy)", cmd: "mypy . 2>&1", detect: "mypy.ini" },
@@ -357,6 +368,7 @@ export async function check(root: string): Promise<void> {
 
   for (const c of checks) {
     if (c.detect && !findFile(root, c.detect)) continue;
+    if (c.skip && c.skip(root)) continue;
 
     try {
       const output = execSync(c.cmd, { cwd: root, timeout: 60000, encoding: "utf-8" });

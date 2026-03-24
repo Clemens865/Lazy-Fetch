@@ -45,7 +45,7 @@ cd your-project
 lazy init
 ```
 
-`lazy init` scaffolds everything: `.lazy/` state directory, hooks, blueprints, slash commands, and MCP config.
+`lazy init` scaffolds everything: `.lazy/` state directory, hooks, blueprints, slash commands, MCP config, and a `CLAUDE.md` that teaches Claude Code how to use lazy-fetch automatically.
 
 **Keeping up to date:**
 
@@ -144,6 +144,18 @@ A command-line task tracker built with TypeScript.
 
 Running `lazy yolo PRD.md` on this creates 3 sprints with those exact tasks, then Claude Code builds the whole thing autonomously.
 
+## Claude Code Integration
+
+After `lazy init`, Claude Code **automatically knows about lazy-fetch**. A `CLAUDE.md` section is injected that:
+
+- Tells Claude Code which commands exist and when to use them
+- Makes Claude Code call MCP tools (`lazy_gather`, `lazy_check`, `lazy_remember`) directly
+- Prompts Claude Code to **recommend next steps** using lazy-fetch commands after each milestone
+
+You don't have to remember the commands — Claude Code will suggest them:
+
+> *"I've implemented the login endpoint. Run `lazy check` to validate, then `lazy done 3` to mark this task complete."*
+
 ## The Loop
 
 Every task follows five phases. You don't have to use all five — but knowing where you are prevents drift.
@@ -156,15 +168,18 @@ Every task follows five phases. You don't have to use all five — but knowing w
 # Start a session — what changed? where are we?
 lazy read
 
-# Plan your work — auto-creates phased tasks
+# Plan from a goal (auto-generates 5-phase tasks)
 lazy plan "add user authentication with JWT"
+
+# Or plan from a file (import your own task list)
+lazy plan --file tasks.md
 
 # Get context for Claude Code
 lazy gather "implement login endpoint"
 
-# Track progress
+# Track progress (by name or number)
+lazy done 3
 lazy update "implement" active
-lazy update "implement" done
 
 # Validate
 lazy check
@@ -181,21 +196,23 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 |---------|-------------|
 | `lazy read` | Git status, plan progress, stored memory — everything you need to start |
 | `lazy plan <goal>` | Break a goal into 5 phased tasks (read/plan/implement/validate/document) |
+| `lazy plan --file <file>` | Import tasks from a bullet-point markdown file |
+| `lazy plan --reset` | Archive the current plan and start fresh |
 | `lazy add <task> [phase]` | Append a task to the plan (phase auto-inferred from wording) |
-| `lazy status` | Phase-grouped view with ◄ current phase indicator |
+| `lazy status` | Phase-grouped view with numbered tasks and ◄ current phase |
 | `lazy update <task> <status>` | Mark progress: `todo`, `active`, `done`, `stuck` |
-| `lazy done <task>` | Shorthand for `update <task> done` |
-| `lazy stuck <task>` | Shorthand for `update <task> stuck` |
+| `lazy done <task or #>` | Mark done by name, partial match, or task number |
+| `lazy stuck <task or #>` | Mark stuck by name or number |
 | `lazy next` | Show the next task and gather context for it |
 | `lazy check` | Run tests, lint, typecheck — plus plan progress |
-| `lazy remove <task>` | Delete a task from the plan |
+| `lazy remove <task or #>` | Delete a task by name or number |
 
 ### Context
 | Command | What it does |
 |---------|-------------|
-| `lazy context` | Repo map with file tree and symbol index |
+| `lazy context` | Repo map with file tree and symbol index (also regenerates `.lazy/CONTEXT.md`) |
 | `lazy context <query>` | Search files, content, and symbols in one shot |
-| `lazy gather <task>` | Find all relevant files for a task, output as `@file` references |
+| `lazy gather <task>` | Find relevant files for a task (respects `.gitignore`) |
 | `lazy watch` | Learn which files matter from git history |
 | `lazy claudemd` | Generate `.lazy/CONTEXT.md` for Claude Code |
 
@@ -370,12 +387,14 @@ Currently regex-based (fast, zero dependencies). Inspired by [Aider's repo-map](
     access.json      # File access patterns
   snapshots/         # Point-in-time state captures
   runs/              # Blueprint execution logs
+  archive/           # Archived plans (created on lazy plan --reset)
 hooks/               # Hook scripts for Claude Code events
 blueprints/          # YAML workflow definitions
 .claude/
   settings.json      # Hook configuration
   commands/          # Slash commands
 .mcp.json            # MCP server configuration
+CLAUDE.md            # Lazy-fetch guidance for Claude Code (auto-generated section)
 ```
 
 ## Research

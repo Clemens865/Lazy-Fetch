@@ -55,17 +55,3 @@ export function readLazyJson<T>(root: string, fallback: T, ...parts: string[]): 
 export function writeLazyJson(root: string, data: unknown, ...parts: string[]): void {
   writeLazyFile(root, JSON.stringify(data, null, 2) + "\n", ...parts);
 }
-
-/** Read a file from the project root, return null if missing */
-export function readProjectFile(root: string, ...parts: string[]): string | null {
-  const p = join(root, ...parts);
-  return existsSync(p) ? readFileSync(p, "utf-8") : null;
-}
-
-/** Write a file to the project root */
-export function writeProjectFile(root: string, content: string, ...parts: string[]): void {
-  const p = join(root, ...parts);
-  const dir = dirname(p);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(p, content, "utf-8");
-}

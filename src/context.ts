@@ -1,7 +1,7 @@
 import { execSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join, relative, extname } from "path";
-import { readLazyFile, writeLazyFile, readLazyJson, writeLazyJson, ensureLazyDir, writeProjectFile, readProjectFile } from "./store.js";
+import { readLazyFile, writeLazyFile, readLazyJson, writeLazyJson, ensureLazyDir } from "./store.js";
 
 // --- .gitignore-aware ignore patterns ---
 

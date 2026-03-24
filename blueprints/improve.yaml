@@ -23,7 +23,7 @@ steps:
 
   - name: build
     type: run
-    command: "npm run build 2>&1"
+    command: "bash hooks/detect-check.sh 2>&1"
     gate:
       on_fail: stop
 

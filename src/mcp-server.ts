@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { plan, status, update, check, add, read, resetPlan } from "./process.js";
+import { plan, status, update, check, add, read, next, remove, resetPlan } from "./process.js";
 import { remember, recall, journal, snapshot } from "./persist.js";
 import { context, gather, watch, claudemd } from "./context.js";
 import { blueprintRun, blueprintList, blueprintShow } from "./blueprint.js";
@@ -217,6 +217,58 @@ server.tool(
   },
   async ({ name, input }) => {
     const output = await blueprintRun(getRoot(), name, input);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+// --- Missing tools ---
+
+server.tool(
+  "lazy_next",
+  "Advance to the next task in the plan. Marks the current task done and shows the next one.",
+  {},
+  async () => {
+    const output = await captureOutput(() => next(getRoot()));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_remove",
+  "Remove a task from the plan by name or partial match.",
+  { task: z.string().describe("Task name or partial match to remove") },
+  async ({ task }) => {
+    const output = await captureOutput(() => remove(getRoot(), task));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_reset_plan",
+  "Reset the entire plan, clearing all tasks and progress.",
+  {},
+  async () => {
+    const output = await captureOutput(() => resetPlan(getRoot()));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_watch",
+  "Track file access patterns from recent git history. Learns which files are most active.",
+  {},
+  async () => {
+    const output = await captureOutput(() => watch(getRoot()));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_claudemd",
+  "Generate a CONTEXT.md file with project overview, symbols, plan, memory, and hot files.",
+  {},
+  async () => {
+    const output = await captureOutput(() => claudemd(getRoot()));
     return { content: [{ type: "text", text: output }] };
   }
 );

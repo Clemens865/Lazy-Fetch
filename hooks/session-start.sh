@@ -4,6 +4,12 @@
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
+# Ensure build exists
+if [ ! -f dist/cli.js ]; then
+  echo "lazy-fetch not built. Run: cd $(pwd) && npm run build" >&2
+  exit 0
+fi
+
 # Ensure .lazy exists
 node dist/cli.js init >/dev/null 2>&1 || true
 

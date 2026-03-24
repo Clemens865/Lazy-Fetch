@@ -53,8 +53,129 @@ async function main() {
   }
 
   if (cmd === "init") {
-    const dir = ensureLazyDir(process.cwd());
+    const cwd = process.cwd();
+    const dir = ensureLazyDir(cwd);
     console.log(`Initialized .lazy/ at ${dir}`);
+
+    const { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, copyFileSync, chmodSync } = await import("fs");
+    const { join, dirname } = await import("path");
+    const lazyFetchRoot = dirname(new URL(import.meta.url).pathname);
+    const projectRoot = join(lazyFetchRoot, "..");
+
+    // --- Scaffold .lazy/ internal structure ---
+
+    // Subdirectories that features depend on
+    const lazySubdirs = ["context", "snapshots", "runs"];
+    for (const sub of lazySubdirs) {
+      const subPath = join(dir, sub);
+      if (!existsSync(subPath)) mkdirSync(subPath, { recursive: true });
+    }
+
+    // Seed files — create with valid defaults so hooks/commands work from the start
+    const seedFiles: Record<string, string> = {
+      "memory.json": JSON.stringify({}, null, 2) + "\n",
+      "journal.md": "# Lazy Fetch Journal\n",
+      "plan.json": "null\n",
+      "plan.md": "",
+      "CONTEXT.md": "",
+      "context/symbols.json": JSON.stringify({ built: null, symbolCount: 0, symbols: [] }, null, 2) + "\n",
+      "context/access.json": JSON.stringify({}, null, 2) + "\n",
+    };
+
+    for (const [file, content] of Object.entries(seedFiles)) {
+      const filePath = join(dir, file);
+      if (!existsSync(filePath)) {
+        writeFileSync(filePath, content, "utf-8");
+      }
+    }
+    console.log("  Created .lazy/ structure (context/, snapshots/, runs/, seed files)");
+
+    // --- Scaffold project-level integration files ---
+
+    // Copy hooks
+    const hooksDir = join(cwd, "hooks");
+    const srcHooks = join(projectRoot, "hooks");
+    if (!existsSync(hooksDir) && existsSync(srcHooks)) {
+      mkdirSync(hooksDir, { recursive: true });
+      for (const f of readdirSync(srcHooks)) {
+        copyFileSync(join(srcHooks, f), join(hooksDir, f));
+        chmodSync(join(hooksDir, f), 0o755);
+      }
+      console.log("  Copied hooks/");
+    }
+
+    // Copy blueprints
+    const bpDir = join(cwd, "blueprints");
+    const srcBp = join(projectRoot, "blueprints");
+    if (!existsSync(bpDir) && existsSync(srcBp)) {
+      mkdirSync(bpDir, { recursive: true });
+      for (const f of readdirSync(srcBp).filter(f => f.endsWith(".yaml") || f.endsWith(".yml"))) {
+        copyFileSync(join(srcBp, f), join(bpDir, f));
+      }
+      console.log("  Copied blueprints/");
+    }
+
+    // Create .claude/settings.json if not present
+    const claudeDir = join(cwd, ".claude");
+    const settingsPath = join(claudeDir, "settings.json");
+    if (!existsSync(settingsPath)) {
+      const srcSettings = join(projectRoot, ".claude", "settings.json");
+      if (existsSync(srcSettings)) {
+        mkdirSync(claudeDir, { recursive: true });
+        writeFileSync(settingsPath, readFileSync(srcSettings, "utf-8"));
+        console.log("  Created .claude/settings.json with hooks");
+      }
+    }
+
+    // Create .claude/commands/ if not present
+    const commandsDir = join(claudeDir, "commands");
+    const srcCommands = join(projectRoot, ".claude", "commands");
+    if (!existsSync(commandsDir) && existsSync(srcCommands)) {
+      mkdirSync(commandsDir, { recursive: true });
+      for (const f of readdirSync(srcCommands)) {
+        copyFileSync(join(srcCommands, f), join(commandsDir, f));
+      }
+      console.log("  Created .claude/commands/ with slash commands");
+    }
+
+    // Create .mcp.json if not present
+    const mcpPath = join(cwd, ".mcp.json");
+    if (!existsSync(mcpPath)) {
+      const mcpConfig = {
+        mcpServers: {
+          "lazy-fetch": {
+            command: "node",
+            args: ["dist/mcp-server.js"],
+            cwd: projectRoot,
+          },
+        },
+      };
+      writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2) + "\n");
+      console.log("  Created .mcp.json for MCP server");
+    }
+
+    // Summary
+    console.log(`
+  Project structure:
+    .lazy/
+      plan.json          Plan data (machine-readable)
+      plan.md            Plan view (human-readable)
+      memory.json        Persistent key-value store
+      journal.md         Decision log
+      CONTEXT.md         Generated context for Claude Code
+      context/
+        symbols.json     Cached symbol index
+        access.json      File access patterns
+      snapshots/         Point-in-time state captures
+      runs/              Blueprint execution logs
+    hooks/               Hook scripts for Claude Code events
+    blueprints/          YAML workflow definitions
+    .claude/
+      settings.json      Hook configuration
+      commands/           Slash commands (/project:read, etc.)
+    .mcp.json            MCP server configuration
+
+  Run 'lazy read' to get started.`);
     return;
   }
 

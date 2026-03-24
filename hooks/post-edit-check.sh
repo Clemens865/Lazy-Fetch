@@ -5,7 +5,7 @@
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 # Extract file path from stdin
-FILE=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty' 2>/dev/null)
+FILE="$1"
 
 # Skip if not a source file
 case "$FILE" in

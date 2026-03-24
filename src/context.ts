@@ -135,6 +135,7 @@ export async function context(root: string, query?: string): Promise<void> {
 
 export async function gather(root: string, task: string): Promise<void> {
   if (!task.trim()) {
+    process.exitCode = 1;
     console.error("Usage: lazy gather <task description>");
     return;
   }
@@ -231,6 +232,14 @@ export async function watch(root: string): Promise<void> {
         const [, count, file] = match;
         accessLog[file] = (accessLog[file] ?? 0) + parseInt(count, 10);
         console.log(`    ${count.padStart(3)} changes  ${file}`);
+      }
+    }
+
+    // Decay old entries — halve counts each time watch runs
+    for (const key of Object.keys(accessLog)) {
+      if (!lines.some(l => l.includes(key))) {
+        accessLog[key] = Math.floor(accessLog[key] * 0.5);
+        if (accessLog[key] === 0) delete accessLog[key];
       }
     }
 
@@ -477,7 +486,7 @@ function grepFiles(root: string, query: string): string[] {
     return output
       .split("\n")
       .filter(Boolean)
-      .map((f) => join(root, f))
+      .map((f) => join(root, f.replace(/^\.\//, "")))
       .filter((f) => !f.includes("node_modules") && !f.includes(".git"));
   } catch {
     return [];
@@ -505,7 +514,7 @@ function extractKeywords(task: string): string[] {
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 2 && !stopWords.has(w));
+    .filter((w) => w.length > 1 && !stopWords.has(w));
 }
 
 function countLines(filePath: string): number {

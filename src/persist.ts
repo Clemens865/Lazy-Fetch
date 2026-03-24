@@ -1,3 +1,4 @@
+import { join } from "path";
 import { ensureLazyDir, readLazyJson, writeLazyJson, readLazyFile, writeLazyFile } from "./store.js";
 
 interface Memory {
@@ -91,18 +92,26 @@ export async function snapshot(root: string, name?: string): Promise<void> {
   const now = new Date();
   const label = name ?? now.toISOString().split("T")[0];
 
+  // Avoid overwriting existing snapshots
+  const snapPath = join("snapshots", `${label}.json`);
+  let finalLabel = label;
+  if (readLazyFile(root, snapPath) !== null) {
+    const suffix = now.toISOString().replace(/[:.]/g, "-").slice(11, 19);
+    finalLabel = `${label}-${suffix}`;
+  }
+
   // Collect current state
   const plan = readLazyFile(root, "plan.md");
   const mem = readLazyJson<Memory>(root, {}, "memory.json");
 
   const snap = {
-    name: label,
+    name: finalLabel,
     timestamp: now.toISOString(),
     plan: plan ?? "(no plan)",
     memoryKeys: Object.keys(mem),
     memoryCount: Object.keys(mem).length,
   };
 
-  writeLazyJson(root, snap, "snapshots", `${label}.json`);
-  console.log(`Snapshot saved: ${label}`);
+  writeLazyJson(root, snap, "snapshots", `${finalLabel}.json`);
+  console.log(`Snapshot saved: ${finalLabel}`);
 }

@@ -3,7 +3,7 @@
     "lazy-fetch": {
       "command": "node",
       "args": ["dist/mcp-server.js"],
-      "cwd": "/Users/clemenshoenig/Documents/Software-Projects/Agentic-Coding-Framework"
+      "cwd": "/Users/clemenshoenig/Documents/Software-Projects/Lazy-Fetch-Test/Lazy-Fetch"
     }
   }
 }

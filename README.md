@@ -31,15 +31,42 @@ Plus an **MCP server** so Claude Code can call `lazy_status`, `lazy_gather`, `la
 
 ## Install
 
+**One command:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Clemens865/Lazy-Fetch/main/install.sh | bash
+```
+
+Then in any project:
+
+```bash
+cd your-project
+lazy init
+```
+
+`lazy init` scaffolds everything: `.lazy/` state directory, hooks, blueprints, slash commands, and MCP config.
+
+<details>
+<summary>Alternative: npm global install</summary>
+
+```bash
+npm install -g github:Clemens865/Lazy-Fetch
+```
+
+</details>
+
+<details>
+<summary>Alternative: manual install</summary>
+
 ```bash
 git clone https://github.com/Clemens865/Lazy-Fetch.git
 cd Lazy-Fetch
 npm install
 npm run build
-npm link        # makes `lazy` available globally
+npm link
 ```
 
-The MCP server auto-configures via `.mcp.json`. Update the `cwd` path in that file to match your clone location.
+</details>
 
 ## The Loop
 

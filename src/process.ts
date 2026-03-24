@@ -121,6 +121,7 @@ function inferPhase(title: string): Phase {
 
 export async function plan(root: string, goal: string): Promise<void> {
   if (!goal.trim()) {
+    process.exitCode = 1;
     console.error("Usage: lazy plan <goal>");
     return;
   }
@@ -178,6 +179,7 @@ export async function plan(root: string, goal: string): Promise<void> {
 
 export async function add(root: string, title: string, phase?: string): Promise<void> {
   if (!title.trim()) {
+    process.exitCode = 1;
     console.error("Usage: lazy add <task> [phase]");
     console.error("Phases: read | plan | implement | validate | document");
     return;
@@ -185,6 +187,7 @@ export async function add(root: string, title: string, phase?: string): Promise<
 
   const p = loadPlan(root);
   if (!p) {
+    process.exitCode = 1;
     console.error("No active plan. Use 'lazy plan <goal>' first.");
     return;
   }
@@ -192,8 +195,16 @@ export async function add(root: string, title: string, phase?: string): Promise<
   const now = new Date().toISOString();
   const taskPhase = (phase && PHASES.includes(phase as Phase)) ? phase as Phase : inferPhase(title);
 
+  let id = makeId(title);
+  const existingIds = new Set(p.tasks.map(t => t.id));
+  if (existingIds.has(id)) {
+    let n = 2;
+    while (existingIds.has(`${id}-${n}`)) n++;
+    id = `${id}-${n}`;
+  }
+
   p.tasks.push({
-    id: makeId(title),
+    id,
     title,
     status: "todo",
     phase: taskPhase,
@@ -242,6 +253,7 @@ export async function status(root: string): Promise<void> {
 
 export async function update(root: string, taskQuery: string, newStatus: string): Promise<void> {
   if (!taskQuery || !newStatus) {
+    process.exitCode = 1;
     console.error("Usage: lazy update <task> <status>");
     console.error("Status: todo | active | done | stuck");
     return;
@@ -249,26 +261,46 @@ export async function update(root: string, taskQuery: string, newStatus: string)
 
   const validStatuses = ["todo", "active", "done", "stuck"];
   if (!validStatuses.includes(newStatus)) {
+    process.exitCode = 1;
     console.error(`Invalid status: ${newStatus}. Use: ${validStatuses.join(", ")}`);
     return;
   }
 
   const p = loadPlan(root);
   if (!p) {
+    process.exitCode = 1;
     console.error("No active plan. Use 'lazy plan <goal>' to create one.");
     return;
   }
 
   const query = taskQuery.toLowerCase();
-  const task = p.tasks.find(
+  const matches = p.tasks.filter(
     (t) => t.id === query || t.title.toLowerCase().includes(query)
   );
 
-  if (!task) {
+  if (matches.length === 0) {
+    process.exitCode = 1;
     console.error(`No task matching "${taskQuery}"`);
     console.error("Tasks:", p.tasks.map((t) => t.title).join(", "));
     return;
   }
+
+  if (matches.length > 1) {
+    const exact = matches.find(t => t.id === query);
+    if (!exact) {
+      process.exitCode = 1;
+      console.error(`Ambiguous: "${taskQuery}" matches ${matches.length} tasks:`);
+      for (const m of matches) {
+        console.error(`  - ${m.title} (id: ${m.id})`);
+      }
+      console.error("Use a more specific query or the task ID.");
+      return;
+    }
+    // Use exact ID match
+    matches.splice(0, matches.length, exact);
+  }
+
+  const task = matches[0];
 
   task.status = newStatus as Task["status"];
   task.updated = new Date().toISOString();
@@ -283,26 +315,46 @@ export async function update(root: string, taskQuery: string, newStatus: string)
 
 export async function remove(root: string, taskQuery: string): Promise<void> {
   if (!taskQuery) {
+    process.exitCode = 1;
     console.error("Usage: lazy remove <task>");
     return;
   }
 
   const p = loadPlan(root);
   if (!p) {
+    process.exitCode = 1;
     console.error("No active plan.");
     return;
   }
 
   const query = taskQuery.toLowerCase();
-  const idx = p.tasks.findIndex(
+  const matches = p.tasks.filter(
     (t) => t.id === query || t.title.toLowerCase().includes(query)
   );
 
-  if (idx === -1) {
+  if (matches.length === 0) {
+    process.exitCode = 1;
     console.error(`No task matching "${taskQuery}"`);
+    console.error("Tasks:", p.tasks.map((t) => t.title).join(", "));
     return;
   }
 
+  if (matches.length > 1) {
+    const exact = matches.find(t => t.id === query);
+    if (!exact) {
+      process.exitCode = 1;
+      console.error(`Ambiguous: "${taskQuery}" matches ${matches.length} tasks:`);
+      for (const m of matches) {
+        console.error(`  - ${m.title} (id: ${m.id})`);
+      }
+      console.error("Use a more specific query or the task ID.");
+      return;
+    }
+    matches.splice(0, matches.length, exact);
+  }
+
+  const task = matches[0];
+  const idx = p.tasks.indexOf(task);
   const removed = p.tasks.splice(idx, 1)[0];
   savePlan(root, p);
   console.log(`Removed: "${removed.title}"`);
@@ -345,7 +397,11 @@ export async function check(root: string): Promise<void> {
     { name: "Git", cmd: "git status --porcelain", parse: parseGit },
     // TypeScript / JavaScript
     { name: "TypeScript", cmd: "npx tsc --noEmit 2>&1", detect: "tsconfig.json" },
-    { name: "ESLint", cmd: "npx eslint . --max-warnings=0 2>&1", detect: ".eslintrc" },
+    { name: "ESLint", cmd: "npx eslint . --max-warnings=0 2>&1", detect: "package.json", skip: (r) => {
+      // Check for any eslint config
+      const configs = [".eslintrc", ".eslintrc.js", ".eslintrc.json", ".eslintrc.yml", "eslint.config.js", "eslint.config.mjs", "eslint.config.ts"];
+      return !configs.some(c => existsSync(join(r, c)));
+    }},
     { name: "Tests (npm)", cmd: "npm test 2>&1", detect: "package.json", skip: (r) => {
       // Skip if test script is a placeholder
       try {
@@ -357,7 +413,15 @@ export async function check(root: string): Promise<void> {
     // Python
     { name: "Python (ruff)", cmd: "ruff check . 2>&1", detect: "pyproject.toml" },
     { name: "Python (mypy)", cmd: "mypy . 2>&1", detect: "mypy.ini" },
-    { name: "Tests (pytest)", cmd: "pytest 2>&1", detect: "pytest.ini" },
+    { name: "Tests (pytest)", cmd: "pytest 2>&1", detect: "pyproject.toml", skip: (r) => {
+      // Run if pytest.ini exists OR pyproject.toml has [tool.pytest] section
+      if (existsSync(join(r, "pytest.ini"))) return false;
+      if (existsSync(join(r, "conftest.py"))) return false;
+      try {
+        const pyproj = readFileSync(join(r, "pyproject.toml"), "utf-8");
+        return !pyproj.includes("[tool.pytest");
+      } catch { return true; }
+    }},
     // Rust
     { name: "Rust (check)", cmd: "cargo check 2>&1", detect: "Cargo.toml" },
     { name: "Tests (cargo)", cmd: "cargo test 2>&1", detect: "Cargo.toml" },
@@ -473,7 +537,7 @@ export async function resetPlan(root: string): Promise<void> {
     console.log("No active plan to reset.");
     return;
   }
-  writeLazyFile(root, "", "plan.json");
+  writeLazyFile(root, "null\n", "plan.json");
   writeLazyFile(root, "", "plan.md");
   console.log(`Plan "${p.goal}" cleared. Use 'lazy plan <goal>' to start fresh.`);
 }

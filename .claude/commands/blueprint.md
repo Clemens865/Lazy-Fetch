@@ -1,0 +1,1 @@
+Run `lazy bp $ARGUMENTS`. If no arguments given, run `lazy bp list` to show available blueprints. Follow any agentic prompts returned by the blueprint execution.

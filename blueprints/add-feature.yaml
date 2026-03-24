@@ -26,14 +26,14 @@ steps:
 
   - name: typecheck
     type: run
-    command: "npx tsc --noEmit 2>&1"
+    command: "bash hooks/detect-check.sh 2>&1"
     gate:
       on_fail: retry
       max_retries: 2
 
   - name: run-tests
     type: run
-    command: "npm test 2>&1"
+    command: "bash hooks/detect-test.sh 2>&1"
     gate:
       on_fail: skip
 

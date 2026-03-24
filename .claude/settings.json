@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./hooks/post-edit-check.sh",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | xargs -I{} ./hooks/post-edit-check.sh {}",
             "timeout": 30,
             "statusMessage": "Checking types..."
           },

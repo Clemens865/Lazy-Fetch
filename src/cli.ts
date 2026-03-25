@@ -68,7 +68,9 @@ lazy — CLI companion for Claude Code
 
   Other:
     lazy init                  Initialize .lazy/ in current project
+    lazy init --scan           Initialize and bootstrap from existing project
     lazy init --update         Refresh hooks, commands, blueprints to latest
+    lazy scan                  Re-scan project: detect stack, commands, git, TODOs
     lazy upgrade               Update lazy-fetch itself from GitHub
     lazy help                  Show this help
 `;
@@ -83,6 +85,7 @@ async function main() {
 
   if (cmd === "init") {
     const forceUpdate = args.includes("--update") || args.includes("-u");
+    const doScan = args.includes("--scan") || args.includes("-s");
     const cwd = process.cwd();
     const dir = ensureLazyDir(cwd);
 
@@ -238,21 +241,32 @@ async function main() {
   Project structure:
     .lazy/
       plan.json, memory.json, journal.md, CONTEXT.md
-      context/   snapshots/   runs/
+      context/   snapshots/   runs/   docs/
     hooks/               Hook scripts for Claude Code events
     blueprints/          YAML workflow definitions
     .claude/
       settings.json      Hook configuration
       commands/           Slash commands (/project:read, etc.)
     .mcp.json            MCP server config
-    CLAUDE.md            Lazy-fetch guidance for Claude Code
+    CLAUDE.md            Lazy-fetch guidance for Claude Code`);
 
+      if (!doScan) {
+        console.log(`
   Run 'lazy read' to get started.
+  Run 'lazy init --scan' to bootstrap context from the existing project.
   After updating lazy-fetch, run 'lazy init --update' to refresh.`);
+      }
     } else {
       console.log("\n  All scaffolding updated to latest version.");
       console.log("  Your data (.lazy/plan, memory, journal) was preserved.");
     }
+
+    // Run scan if requested
+    if (doScan) {
+      const { scan } = await import("./scan.js");
+      await scan(cwd);
+    }
+
     return;
   }
 
@@ -338,6 +352,11 @@ async function main() {
     case "watch":
       await watch(root);
       break;
+    case "scan": {
+      const { scan } = await import("./scan.js");
+      await scan(root);
+      break;
+    }
     case "claudemd":
       await claudemd(root);
       break;

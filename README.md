@@ -49,10 +49,34 @@ Then in any project:
 
 ```bash
 cd your-project
-lazy init
+lazy init              # Fresh project
+lazy init --scan       # Existing project — auto-detects stack, commands, git history
 ```
 
 `lazy init` scaffolds everything: `.lazy/` state directory, hooks, blueprints, slash commands, MCP config, and a `CLAUDE.md` that teaches Claude Code how to use lazy-fetch automatically.
+
+**Joining an existing project?** Use `--scan` to bootstrap lazy-fetch with intelligence from the codebase:
+
+```
+$ lazy init --scan
+
+  Scanning project...
+  ─────────────────────────────────────────
+  Stack: TypeScript, Node.js, Next.js 16, React, Supabase, Tailwind CSS
+  Build: npm run build
+  Lint:  npm run lint
+  Entry: src/app/layout.tsx, src/app/page.tsx
+
+  Git:
+    Branch: main
+    Last commit: 2 hours ago
+    Active files: src/lib/api.ts, src/app/page.tsx, ...
+
+  Symbols indexed: 171
+  Scan complete: 11 facts stored in memory
+```
+
+You can also re-scan anytime with `lazy scan`.
 
 **Keeping up to date:**
 

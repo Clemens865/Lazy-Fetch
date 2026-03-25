@@ -26,6 +26,7 @@ This project uses [lazy-fetch](https://github.com/Clemens865/Lazy-Fetch) for con
 | `lazy secure` | Full security audit: secrets, injection, auth, dependencies |
 | `lazy secure --gate` | Quick security check (critical + high only, for CI gates) |
 | `lazy selftest` | Verify lazy-fetch works correctly (22 built-in tests) |
+| `lazy scan` | Re-scan project: detect stack, commands, git history, TODOs |
 | `lazy selftest --quick` | Fast validation (17 tests, ~20ms) |
 
 ### Blueprints — Use These for Common Tasks

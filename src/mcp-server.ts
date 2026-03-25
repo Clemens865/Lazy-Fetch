@@ -273,6 +273,21 @@ server.tool(
   }
 );
 
+// --- Security ---
+
+server.tool(
+  "lazy_secure",
+  "Run a security audit on the codebase. Checks for hardcoded secrets, injection vulnerabilities, auth issues, dependency vulnerabilities, and more. Use --gate for a quick critical+high-only check.",
+  {
+    gate: z.boolean().optional().describe("Gate mode: only check critical + high, skip dependency audit (faster)"),
+  },
+  async ({ gate }) => {
+    const { secure } = await import("./secure.js");
+    const output = await captureOutput(() => secure(getRoot(), gate ?? false));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
 // --- Yolo Mode ---
 
 server.tool(

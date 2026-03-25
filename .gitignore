@@ -10,6 +10,10 @@ dist/
 # Claude Code local settings
 .claude/settings.local.json
 
+# Environment
+.env
+.env.*
+
 # OS
 .DS_Store
 Thumbs.db

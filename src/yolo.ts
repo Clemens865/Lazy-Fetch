@@ -3,6 +3,7 @@ import { join, resolve } from "path";
 import { readLazyJson, writeLazyJson, readLazyFile, appendLazyFile } from "./store.js";
 import { check } from "./process.js";
 import { journal, snapshot } from "./persist.js";
+import { secureGate } from "./secure.js";
 
 // --- Types ---
 
@@ -472,7 +473,24 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
       `Fix the issues and call lazy_yolo_advance again.`;
   }
 
-  // Validation passed — advance
+  // Validation passed — run security gate
+  const secResult = await secureGate(root);
+  logEvent(root, runId, {
+    ts: new Date().toISOString(),
+    event: "security-gate",
+    sprint: current.title,
+    data: { pass: secResult.pass, critical: secResult.critical, high: secResult.high },
+  });
+
+  if (!secResult.pass) {
+    saveState(root, state);
+    return `Sprint "${current.title}" passed checks but FAILED security gate.\n\n` +
+      `${secResult.critical} critical, ${secResult.high} high severity issue(s) found.\n\n` +
+      `${secResult.output}\n\n` +
+      `Fix the security issues and call lazy_yolo_advance again.`;
+  }
+
+  // All gates passed — advance
   const now = new Date().toISOString();
   current.status = "done";
   current.completed = now;

@@ -6,6 +6,7 @@ import { context, gather, watch, claudemd } from "./context.js";
 import { blueprintRun, blueprintList, blueprintShow } from "./blueprint.js";
 import { findLazyRoot, ensureLazyDir } from "./store.js";
 import { selftest } from "./selftest.js";
+import { secure } from "./secure.js";
 
 const HELP = `
 lazy — CLI companion for Claude Code
@@ -47,6 +48,10 @@ lazy — CLI companion for Claude Code
     lazy yolo status           Show yolo mode progress
     lazy yolo report           Run scorecard: process quality, build quality
     lazy yolo reset            Clear yolo state and start over
+
+  Security:
+    lazy secure                Full security audit of the codebase
+    lazy secure --gate         Quick check (critical + high only, for CI/yolo gates)
 
   Validate:
     lazy selftest              Run all self-validation checks
@@ -359,6 +364,14 @@ async function main() {
     case "snapshot":
       await snapshot(root, args[0]);
       break;
+
+    // Security
+    case "secure":
+    case "security": {
+      const gate = args.includes("--gate") || args.includes("-g");
+      await secure(root, gate);
+      break;
+    }
 
     // Selftest
     case "selftest": {

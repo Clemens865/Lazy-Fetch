@@ -549,6 +549,17 @@ export async function check(root: string): Promise<void> {
     }
   }
 
+  // Quick security gate (secrets + env only)
+  try {
+    const { secureGate } = await import("./secure.js");
+    const sec = await secureGate(root);
+    if (sec.pass) {
+      console.log("  ✓ Security: no critical/high issues");
+    } else {
+      console.log(`  ✗ Security: ${sec.critical} critical, ${sec.high} high`);
+    }
+  } catch {}
+
   // Also show plan progress if available
   const p = loadPlan(root);
   if (p) {

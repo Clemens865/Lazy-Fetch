@@ -273,6 +273,33 @@ server.tool(
   }
 );
 
+// --- Documentation ---
+
+server.tool(
+  "lazy_doc",
+  "Show documentation overview: plan doc, validation log, sprint archives, screenshots.",
+  {},
+  async () => {
+    const { doc } = await import("./doc.js");
+    const output = await captureOutput(() => doc(getRoot(), []));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_doc_screenshot",
+  "Capture a screenshot of a URL using Playwright. Saves to .lazy/docs/screenshots/. Use for frontend validation.",
+  {
+    url: z.string().describe("URL to screenshot (e.g., http://localhost:3000)"),
+    name: z.string().optional().describe("Optional name for the screenshot file"),
+  },
+  async ({ url, name }) => {
+    const { captureScreenshot } = await import("./doc.js");
+    const path = await captureScreenshot(getRoot(), url, name);
+    return { content: [{ type: "text", text: `Screenshot saved: ${path}` }] };
+  }
+);
+
 // --- Security ---
 
 server.tool(

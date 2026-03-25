@@ -51,6 +51,12 @@ function savePlan(root: string, p: Plan): void {
   p.updated = new Date().toISOString();
   writeLazyJson(root, p, "plan.json");
   writeLazyFile(root, renderPlanMarkdown(p), "plan.md");
+
+  // Also update docs/plan.md
+  try {
+    const { updatePlanDoc } = require("./doc.js") as typeof import("./doc.js");
+    updatePlanDoc(root, p.goal, p.tasks.map(t => ({ title: t.title, phase: t.phase, status: t.status })));
+  } catch {}
 }
 
 function renderPlanMarkdown(p: Plan): string {
@@ -531,6 +537,8 @@ export async function check(root: string): Promise<void> {
     { name: "Tests (go)", cmd: "go test ./... 2>&1", detect: "go.mod" },
   ];
 
+  const checkResults: { name: string; pass: boolean; detail: string }[] = [];
+
   for (const c of checks) {
     if (c.detect && !findFile(root, c.detect)) continue;
     if (c.skip && c.skip(root)) continue;
@@ -538,14 +546,18 @@ export async function check(root: string): Promise<void> {
     try {
       const output = execSync(c.cmd, { cwd: root, timeout: 60000, encoding: "utf-8" });
       if (c.parse) {
-        console.log(`  ${c.parse(output)}`);
+        const parsed = c.parse(output);
+        console.log(`  ${parsed}`);
+        checkResults.push({ name: c.name, pass: !parsed.includes("✗"), detail: parsed.replace(/^\s*[✓✗⚠]\s*\S+:\s*/, "").trim() });
       } else {
         console.log(`  ✓ ${c.name}: OK`);
+        checkResults.push({ name: c.name, pass: true, detail: "OK" });
       }
     } catch (err: any) {
       const output = err.stdout || err.stderr || err.message;
       const lines = output.split("\n").filter(Boolean);
       console.log(`  ✗ ${c.name}: ${lines.length} issue(s)`);
+      checkResults.push({ name: c.name, pass: false, detail: `${lines.length} issue(s)` });
     }
   }
 
@@ -555,9 +567,18 @@ export async function check(root: string): Promise<void> {
     const sec = await secureGate(root);
     if (sec.pass) {
       console.log("  ✓ Security: no critical/high issues");
+      checkResults.push({ name: "Security", pass: true, detail: "no critical/high issues" });
     } else {
       console.log(`  ✗ Security: ${sec.critical} critical, ${sec.high} high`);
+      checkResults.push({ name: "Security", pass: false, detail: `${sec.critical} critical, ${sec.high} high` });
     }
+  } catch {}
+
+  // Log to validation doc
+  try {
+    const { appendValidationLog } = await import("./doc.js");
+    const summary = checkResults.map(r => `${r.pass ? "✓" : "✗"} ${r.name}: ${r.detail}`).join("\n");
+    appendValidationLog(root, "Health Check", summary);
   } catch {}
 
   // Also show plan progress if available

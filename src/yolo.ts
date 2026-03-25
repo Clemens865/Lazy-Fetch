@@ -4,6 +4,7 @@ import { readLazyJson, writeLazyJson, readLazyFile, appendLazyFile } from "./sto
 import { check } from "./process.js";
 import { journal, snapshot } from "./persist.js";
 import { secureGate } from "./secure.js";
+import { generateYoloPlanDoc, generateSprintDoc, appendValidationLog } from "./doc.js";
 
 // --- Types ---
 
@@ -250,8 +251,10 @@ Use blueprints via MCP: \`lazy_blueprint_run\` with \`name\` and \`input\` param
 - Use \`lazy_remember\` for important decisions so later sprints have context.
 - Use \`lazy_journal\` to log significant choices or tradeoffs.
 - Use \`lazy_snapshot\` before risky changes within a sprint.
+- **Frontend sprints:** After implementing UI, call \`lazy_doc_screenshot\` with the local URL to capture a visual record.
 - Keep changes minimal. Ship the simplest thing that works.
-- After the final sprint, do one last \`lazy_check\` and commit all work.
+- After the final sprint, do one last \`lazy_check\`, run \`lazy yolo report\`, and commit all work.
+- Documentation is auto-generated: plan.md updates on every sprint, sprint archives are created on completion, validation logs append on every check.
 
 ## Start Now
 
@@ -329,6 +332,11 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
     event: "yolo-start",
     data: { goal, sprintCount: sprints.length, prdFile: prdPath, totalTasks: sprints.reduce((n, s) => n + s.tasks.length, 0) },
   });
+
+  // Generate plan doc
+  generateYoloPlanDoc(root, goal, prdPath, state.plan.sprints.map(s => ({
+    title: s.title, tasks: s.tasks, status: s.status,
+  })));
 
   // Journal the start
   await journal(root, `YOLO mode started: "${goal}" — ${sprints.length} sprint(s) from ${prdPath}`);
@@ -503,6 +511,28 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
     sprint: current.title,
     data: { attempts: state.iterations, durationMs: sprintDurationMs, notes: notes ?? "" },
   });
+
+  // Generate sprint archive doc
+  generateSprintDoc(root, {
+    index: state.currentSprint,
+    title: current.title,
+    tasks: current.tasks,
+    status: "done",
+    started: current.started,
+    completed: now,
+    attempts: state.iterations,
+    validationOutput: current.validation?.output,
+    securityOutput: secResult.output,
+    notes: notes ?? "",
+  });
+
+  // Log validation to docs
+  appendValidationLog(root, `Sprint ${state.currentSprint + 1}: ${current.title}`, current.validation?.output ?? "");
+
+  // Update plan doc
+  generateYoloPlanDoc(root, state.plan.goal, state.plan.prdFile, state.plan.sprints.map(s => ({
+    title: s.title, tasks: s.tasks, status: s.status,
+  })));
 
   await journal(root, `YOLO sprint "${current.title}" completed. ${notes ?? ""}`);
 

@@ -7,6 +7,7 @@ import { blueprintRun, blueprintList, blueprintShow } from "./blueprint.js";
 import { findLazyRoot, ensureLazyDir } from "./store.js";
 import { selftest } from "./selftest.js";
 import { secure } from "./secure.js";
+import { doc } from "./doc.js";
 
 const HELP = `
 lazy — CLI companion for Claude Code
@@ -48,6 +49,12 @@ lazy — CLI companion for Claude Code
     lazy yolo status           Show yolo mode progress
     lazy yolo report           Run scorecard: process quality, build quality
     lazy yolo reset            Clear yolo state and start over
+
+  Documentation:
+    lazy doc                   Show documentation overview
+    lazy doc plan              Show generated plan document
+    lazy doc validation        Show validation log
+    lazy doc screenshot <url>  Capture a screenshot via Playwright
 
   Security:
     lazy secure                Full security audit of the codebase
@@ -364,6 +371,13 @@ async function main() {
     case "snapshot":
       await snapshot(root, args[0]);
       break;
+
+    // Documentation
+    case "doc":
+    case "docs": {
+      await doc(root, args);
+      break;
+    }
 
     // Security
     case "secure":

@@ -18,6 +18,7 @@ lazy bp run     → ⚙  Execute a workflow (deterministic + agentic)
 lazy check      → ✓  Validate: tests, types, plan progress
 lazy remember   → 🧠 Persist knowledge across sessions
 lazy secure     → 🔒 Security audit: secrets, injection, auth, deps
+lazy doc        → 📄 Auto-generated docs: plan, sprints, validation, screenshots
 lazy yolo       → 🚀 Autonomous mode: PRD → sprints → done
 lazy selftest   → 🔬 Verify everything works (22 built-in tests)
 ```
@@ -247,6 +248,14 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | `lazy yolo report` | Run scorecard: process quality, build quality, per-sprint timing |
 | `lazy yolo reset` | Clear yolo state |
 
+### Documentation
+| Command | What it does |
+|---------|-------------|
+| `lazy doc` | Show documentation overview |
+| `lazy doc plan` | Show auto-generated plan document |
+| `lazy doc validation` | Show validation log (appended on every `lazy check`) |
+| `lazy doc screenshot <url>` | Capture a Playwright screenshot for frontend validation |
+
 ### Security
 | Command | What it does |
 |---------|-------------|
@@ -400,17 +409,56 @@ lazy secure
 - **`lazy_secure` MCP tool** — Claude Code can run it directly
 - **`--gate` flag** for fast CI-friendly checks (critical + high only, skips dependency audit)
 
+## Auto-Documentation
+
+Lazy-fetch automatically generates structured documentation as you work. No extra steps needed — docs are created as a side effect of planning, checking, and completing sprints.
+
+### What gets generated
+
+```
+.lazy/docs/
+  plan.md                        # Living plan — updates on every task/sprint change
+  validation.md                  # Append-only log of every lazy check run
+  sprints/
+    sprint-01-authentication.md  # Per-sprint archive (created on completion)
+    sprint-02-dashboard.md
+  screenshots/
+    sprint-01-login-page.png     # Playwright captures for frontend validation
+```
+
+### When docs are written
+
+| Event | What happens |
+|-------|-------------|
+| `lazy plan <goal>` | Creates `docs/plan.md` with phases and tasks |
+| `lazy done <task>` | Updates `docs/plan.md` with completion |
+| `lazy check` | Appends results to `docs/validation.md` |
+| `lazy yolo advance` (sprint done) | Creates `docs/sprints/sprint-NN-title.md` with full record |
+| `lazy doc screenshot <url>` | Captures via Playwright to `docs/screenshots/` |
+
+### Sprint archive contents
+
+Each sprint doc captures:
+- **Planned tasks** from the PRD
+- **Changes** — files created/modified (from git)
+- **Validation results** — typecheck, tests, security
+- **Screenshots** — linked if captured during the sprint
+
+### Yolo mode
+
+In yolo mode, documentation is fully automatic — the plan doc updates as sprints complete, each finished sprint gets its own archive, and all validation results are logged. After a yolo run, `.lazy/docs/` contains a complete record of what was planned, built, and validated.
+
 ## MCP Server
 
-Lazy Fetch runs as an MCP server, giving Claude Code **25 native tools**:
+Lazy Fetch runs as an MCP server, giving Claude Code **27 native tools**:
 
 ```
 lazy_read, lazy_plan, lazy_add, lazy_status, lazy_update, lazy_check,
 lazy_context, lazy_gather, lazy_next, lazy_remove, lazy_reset_plan,
 lazy_watch, lazy_claudemd, lazy_remember, lazy_recall, lazy_journal,
-lazy_snapshot, lazy_secure, lazy_blueprint_list, lazy_blueprint_show,
-lazy_blueprint_run, lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance,
-lazy_yolo_report
+lazy_snapshot, lazy_doc, lazy_doc_screenshot, lazy_secure,
+lazy_blueprint_list, lazy_blueprint_show, lazy_blueprint_run,
+lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance, lazy_yolo_report
 ```
 
 Configured in `.mcp.json`. Claude Code can call these directly — no terminal switching needed.

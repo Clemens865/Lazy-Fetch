@@ -17,6 +17,7 @@ lazy gather     → 🔍 Pre-hydrate context for Claude Code
 lazy bp run     → ⚙  Execute a workflow (deterministic + agentic)
 lazy check      → ✓  Validate: tests, types, plan progress
 lazy remember   → 🧠 Persist knowledge across sessions
+lazy secure     → 🔒 Security audit: secrets, injection, auth, deps
 lazy yolo       → 🚀 Autonomous mode: PRD → sprints → done
 lazy selftest   → 🔬 Verify everything works (22 built-in tests)
 ```
@@ -243,7 +244,14 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | `lazy yolo <prd-file>` | Parse PRD into sprints, start autonomous execution |
 | `lazy yolo <prd> --dry-run` | Preview sprint plan without writing state |
 | `lazy yolo status` | Current sprint progress and overview |
+| `lazy yolo report` | Run scorecard: process quality, build quality, per-sprint timing |
 | `lazy yolo reset` | Clear yolo state |
+
+### Security
+| Command | What it does |
+|---------|-------------|
+| `lazy secure` | Full security audit: secrets, injection, auth, deps (23 rules) |
+| `lazy secure --gate` | Quick check — critical + high only, for CI/yolo gates |
 
 ### Validate
 | Command | What it does |
@@ -354,16 +362,55 @@ steps:
 
 Variables: `${input}` is replaced with the blueprint input. `${step_N_output}` contains output from step N.
 
+## Security
+
+Built-in security scanner that catches vulnerabilities before they ship. No external tools needed — pattern-based analysis across 23 rules.
+
+```bash
+lazy secure
+```
+```
+  Security Audit
+  ─────────────────────────────────────────
+  Files scanned: 135
+  Rules checked: 26
+
+  MEDIUM:    18
+
+  src/app/api/ai/assistant/route.ts
+     ! L5: [MEDIUM] API route without authentication check
+     ! L5: [MEDIUM] Public API endpoint without rate limiting
+
+  Total: 18 finding(s) (0 critical, 0 high, 18 medium, 0 low)
+```
+
+### What It Checks
+
+| Severity | Examples |
+|----------|---------|
+| **Critical** | Hardcoded API keys, passwords, AWS keys, private keys, committed `.env` files, DB connection strings |
+| **High** | SQL injection, command injection, path traversal, XSS, `eval()`, unsafe regex, `.env` not gitignored |
+| **Medium** | CORS wildcard, missing auth on API routes, missing rate limiting, HTTP URLs, insecure cookies, dependency vulnerabilities |
+| **Low** | Sensitive data in console.log, security TODOs, debug mode, weak crypto (MD5/SHA1) |
+
+### Integration
+
+- **`lazy check`** includes a security gate — critical and high issues always flagged
+- **`lazy yolo advance`** runs a security gate between sprints — blocks advancement if critical/high issues found
+- **`lazy_secure` MCP tool** — Claude Code can run it directly
+- **`--gate` flag** for fast CI-friendly checks (critical + high only, skips dependency audit)
+
 ## MCP Server
 
-Lazy Fetch runs as an MCP server, giving Claude Code **23 native tools**:
+Lazy Fetch runs as an MCP server, giving Claude Code **25 native tools**:
 
 ```
 lazy_read, lazy_plan, lazy_add, lazy_status, lazy_update, lazy_check,
 lazy_context, lazy_gather, lazy_next, lazy_remove, lazy_reset_plan,
 lazy_watch, lazy_claudemd, lazy_remember, lazy_recall, lazy_journal,
-lazy_snapshot, lazy_blueprint_list, lazy_blueprint_show, lazy_blueprint_run,
-lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance
+lazy_snapshot, lazy_secure, lazy_blueprint_list, lazy_blueprint_show,
+lazy_blueprint_run, lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance,
+lazy_yolo_report
 ```
 
 Configured in `.mcp.json`. Claude Code can call these directly — no terminal switching needed.

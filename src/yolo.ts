@@ -164,6 +164,8 @@ function parsePrdToSprints(prdContent: string): { goal: string; sprints: Sprint[
 
 // --- Validation ---
 
+const VALIDATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max for all checks
+
 async function runValidation(root: string): Promise<{ pass: boolean; output: string }> {
   const lines: string[] = [];
   const origLog = console.log;
@@ -172,7 +174,14 @@ async function runValidation(root: string): Promise<{ pass: boolean; output: str
   console.error = (...args: any[]) => lines.push(args.map(String).join(" "));
 
   try {
-    await check(root);
+    await Promise.race([
+      check(root),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Validation timed out after 5 minutes")), VALIDATION_TIMEOUT_MS)
+      ),
+    ]);
+  } catch (err: any) {
+    lines.push(`✗ ${err.message}`);
   } finally {
     console.log = origLog;
     console.error = origErr;
@@ -356,8 +365,9 @@ async function preflightCheck(root: string, runSelftest: (quick: boolean, report
   try {
     await runSelftest(true, false);
     failed = process.exitCode === 1;
-  } catch {
+  } catch (err: any) {
     failed = true;
+    lines.push(`Selftest error: ${err.message}`);
   } finally {
     console.log = origLog;
     console.error = origErr;
@@ -730,6 +740,52 @@ function formatDuration(ms: number): string {
   const hours = Math.floor(mins / 60);
   const remMins = mins % 60;
   return `${hours}h ${remMins}m`;
+}
+
+export async function yoloResume(root: string): Promise<string> {
+  const state = loadState(root);
+  if (!state) {
+    return "No yolo session to resume. Run 'lazy yolo <prd-file>' to start.";
+  }
+
+  if (state.status === "running") {
+    const current = state.plan.sprints[state.currentSprint];
+    return `Yolo mode is already running.\n\n` +
+      `  Sprint ${state.currentSprint + 1}/${state.plan.sprints.length}: ${current?.title ?? "?"}\n\n` +
+      `Use 'lazy yolo status' to see progress.`;
+  }
+
+  if (state.status === "completed") {
+    return "Yolo session is already completed. Run 'lazy yolo report' or 'lazy yolo reset'.";
+  }
+
+  // Resume from paused/failed
+  const current = state.plan.sprints[state.currentSprint];
+
+  // Reset the failed sprint back to active
+  if (current && current.status === "failed") {
+    current.status = "active";
+  }
+
+  state.status = "running";
+  state.iterations = 0; // Reset retry budget for this sprint
+  saveState(root, state);
+
+  const runId = getRunId(state);
+  logEvent(root, runId, {
+    ts: new Date().toISOString(),
+    event: "yolo-resume",
+    sprint: current?.title,
+    data: { sprintIndex: state.currentSprint },
+  });
+
+  await journal(root, `YOLO mode resumed at sprint ${state.currentSprint + 1}: "${current?.title}"`);
+
+  return `Yolo mode resumed!\n\n` +
+    `  Goal: ${state.plan.goal}\n` +
+    `  Sprint ${state.currentSprint + 1}/${state.plan.sprints.length}: ${current?.title}\n` +
+    `  Tasks:\n${current?.tasks.map(t => `    - ${t}`).join("\n")}\n\n` +
+    `  Retry budget reset. Fix the issues and call lazy_yolo_advance when ready.`;
 }
 
 export async function yoloReset(root: string): Promise<void> {

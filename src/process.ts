@@ -52,11 +52,10 @@ function savePlan(root: string, p: Plan): void {
   writeLazyJson(root, p, "plan.json");
   writeLazyFile(root, renderPlanMarkdown(p), "plan.md");
 
-  // Also update docs/plan.md
-  try {
-    const { updatePlanDoc } = require("./doc.js") as typeof import("./doc.js");
+  // Also update docs/plan.md (fire-and-forget since savePlan is sync)
+  import("./doc.js").then(({ updatePlanDoc }) => {
     updatePlanDoc(root, p.goal, p.tasks.map(t => ({ title: t.title, phase: t.phase, status: t.status })));
-  } catch {}
+  }).catch(() => {});
 }
 
 function renderPlanMarkdown(p: Plan): string {
@@ -572,14 +571,18 @@ export async function check(root: string): Promise<void> {
       console.log(`  ✗ Security: ${sec.critical} critical, ${sec.high} high`);
       checkResults.push({ name: "Security", pass: false, detail: `${sec.critical} critical, ${sec.high} high` });
     }
-  } catch {}
+  } catch (err: any) {
+    console.log(`  ⚠ Security: skipped (${err.message})`);
+  }
 
   // Log to validation doc
   try {
     const { appendValidationLog } = await import("./doc.js");
     const summary = checkResults.map(r => `${r.pass ? "✓" : "✗"} ${r.name}: ${r.detail}`).join("\n");
     appendValidationLog(root, "Health Check", summary);
-  } catch {}
+  } catch (err: any) {
+    // Non-critical — doc logging should not break check
+  }
 
   // Also show plan progress if available
   const p = loadPlan(root);

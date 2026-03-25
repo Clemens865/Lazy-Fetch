@@ -62,6 +62,17 @@ server.tool(
 );
 
 server.tool(
+  "lazy_plan_from_file",
+  "Create a plan by importing tasks from a markdown file with bullet points.",
+  { file: z.string().describe("Path to markdown file with bullet-point tasks") },
+  async ({ file }) => {
+    const { planFromFile } = await import("./process.js");
+    const output = await captureOutput(() => planFromFile(getRoot(), file));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
   "lazy_add",
   "Add a task to the current plan. Phase is auto-inferred from wording or can be specified.",
   {
@@ -93,6 +104,30 @@ server.tool(
   },
   async ({ task, status: newStatus }) => {
     const output = await captureOutput(() => update(getRoot(), task, newStatus));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_done",
+  "Mark a task as done. Shorthand for update <task> done. Supports name, partial match, or task number.",
+  {
+    task: z.string().describe("Task name, partial match, or number"),
+  },
+  async ({ task }) => {
+    const output = await captureOutput(() => update(getRoot(), task, "done"));
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_stuck",
+  "Mark a task as stuck. Shorthand for update <task> stuck. Use when blocked.",
+  {
+    task: z.string().describe("Task name, partial match, or number"),
+  },
+  async ({ task }) => {
+    const output = await captureOutput(() => update(getRoot(), task, "stuck"));
     return { content: [{ type: "text", text: output }] };
   }
 );
@@ -350,6 +385,17 @@ server.tool(
   async ({ notes }) => {
     const { yoloAdvance } = await import("./yolo.js");
     const output = await yoloAdvance(getRoot(), notes);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_yolo_resume",
+  "Resume a paused or failed yolo session. Resets the retry budget for the current sprint.",
+  {},
+  async () => {
+    const { yoloResume } = await import("./yolo.js");
+    const output = await yoloResume(getRoot());
     return { content: [{ type: "text", text: output }] };
   }
 );

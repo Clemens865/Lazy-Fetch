@@ -48,6 +48,7 @@ lazy — CLI companion for Claude Code
     lazy yolo <prd> --dry-run  Preview sprint plan without writing state
     lazy yolo status           Show yolo mode progress
     lazy yolo report           Run scorecard: process quality, build quality
+    lazy yolo resume           Resume a paused/failed yolo session
     lazy yolo reset            Clear yolo state and start over
 
   Documentation:
@@ -404,6 +405,9 @@ async function main() {
       } else if (sub === "report") {
         const { yoloReport } = await import("./yolo.js");
         console.log(await yoloReport(root));
+      } else if (sub === "resume") {
+        const { yoloResume } = await import("./yolo.js");
+        console.log(await yoloResume(root));
       } else if (sub === "reset") {
         const { yoloReset } = await import("./yolo.js");
         await yoloReset(root);

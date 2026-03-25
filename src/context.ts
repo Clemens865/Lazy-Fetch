@@ -168,8 +168,10 @@ export async function context(root: string, query?: string): Promise<void> {
   // Silently regenerate .lazy/CONTEXT.md
   const origLog = console.log;
   console.log = () => {};
-  try { await claudemd(root); } catch {}
-  finally { console.log = origLog; }
+  try { await claudemd(root); } catch (err: any) {
+    console.log = origLog;
+    console.error(`  Warning: CONTEXT.md generation failed: ${err.message}`);
+  } finally { console.log = origLog; }
 }
 
 export async function gather(root: string, task: string): Promise<void> {

@@ -270,6 +270,7 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | `lazy yolo <prd> --dry-run` | Preview sprint plan without writing state |
 | `lazy yolo status` | Current sprint progress and overview |
 | `lazy yolo report` | Run scorecard: process quality, build quality, per-sprint timing |
+| `lazy yolo resume` | Resume a paused or failed yolo session |
 | `lazy yolo reset` | Clear yolo state |
 
 ### Documentation
@@ -297,7 +298,9 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | Command | What it does |
 |---------|-------------|
 | `lazy init` | Initialize `.lazy/` with full scaffolding |
+| `lazy init --scan` | Initialize and bootstrap from existing project |
 | `lazy init --update` | Refresh hooks, commands, blueprints to latest version |
+| `lazy scan` | Re-scan project: detect stack, commands, git history, TODOs |
 | `lazy upgrade` | Update lazy-fetch itself from GitHub |
 
 ## Slash Commands

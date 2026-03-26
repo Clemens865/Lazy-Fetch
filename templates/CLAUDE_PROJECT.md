@@ -12,7 +12,7 @@ These actions are **required** — do them without being asked:
 4. **After implementing against a contract** → Call `lazy_eval`, follow the QA instructions, then call `lazy_eval_record` with results
 5. **When you make an architectural decision** → Call `lazy_remember` so it survives across sessions
 6. **When you complete a task** → Call `lazy_done` to mark it and see what's next
-7. **When memory is empty on first session** → Call `lazy scan` to bootstrap from the existing codebase
+7. **When memory is empty on first session** → Call `lazy scan` to bootstrap from the existing codebase (also discovers installed skills)
 
 ### Pattern Recognition — Auto-Select the Right Tool
 
@@ -66,7 +66,8 @@ Skip step 2 (contract) only for trivial changes (typo fixes, config tweaks, one-
 | `lazy remember <key> <value>` | Store a decision or fact for future sessions |
 | `lazy recall [key]` | Retrieve stored knowledge |
 | `lazy journal <entry>` | Log a decision or milestone |
-| `lazy scan` | Re-scan project: detect stack, commands, git history, TODOs |
+| `lazy scan` | Re-scan project: detect stack, commands, git history, TODOs, installed skills |
+| `lazy skills` | Discover installed Claude Code skills for use in workflows |
 | `lazy secure` | Full security audit: secrets, injection, auth, deps |
 | `lazy doc` | Show documentation overview |
 | `lazy doc screenshot <url>` | Capture a Playwright screenshot |
@@ -135,4 +136,5 @@ Generated automatically — no action needed:
 - Use `lazy_check` after every significant change — don't skip it
 - Use `lazy_remember` for decisions that should survive across sessions
 - Evaluate skeptically — test, don't assume
+- **Check `.lazy/context/skills.json` for available skills** — use specialized skills (e.g., `/frontend-design` for UI, `/investigate` for debugging, `/api-database-scout` for API research) instead of doing everything generically
 - Tell the user what you did and what's next — transparency builds trust

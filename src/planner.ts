@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { readLazyJson, writeLazyFile } from "./store.js";
+import { formatSkillsForPrompt } from "./skills.js";
 
 /**
  * Generate a planner prompt that expands a one-liner into a full PRD.
@@ -175,6 +176,14 @@ Generate the PRD in this exact markdown structure — the sprint parser depends 
 2. Call \`lazy_yolo_start\` with path \`generated-prd.md\` (relative to project root — it's inside .lazy/)
 
 Do not ask for confirmation. Generate the PRD and start yolo mode immediately.`);
+
+  // Add available skills if any
+  const skillsSection = formatSkillsForPrompt(root);
+  if (skillsSection) {
+    sections.push(skillsSection);
+    sections.push(`
+**Leverage these skills during implementation.** When a sprint involves UI work, use \`/frontend-design\` or \`/ui-expert\`. When researching APIs, use \`/api-database-scout\`. When debugging, use \`/investigate\`. Mention relevant skills in the PRD phase descriptions so the implementer knows to use them.`);
+  }
 
   return sections.join("\n");
 }

@@ -7,6 +7,7 @@ import { secureGate } from "./secure.js";
 import { generateYoloPlanDoc, generateSprintDoc, appendValidationLog } from "./doc.js";
 import { generateContract } from "./eval.js";
 import { generatePlannerPrompt, isFilePath } from "./planner.js";
+import { formatSkillsForPrompt, recommendSkills } from "./skills.js";
 
 // --- Types ---
 
@@ -207,7 +208,7 @@ function formatSprintPlan(sprints: Sprint[]): string {
 
 // --- Master Prompt ---
 
-function generateMasterPrompt(state: YoloState): string {
+function generateMasterPrompt(state: YoloState, root: string): string {
   const { plan } = state;
   const sprintPlan = formatSprintPlan(plan.sprints);
 
@@ -268,7 +269,7 @@ Use blueprints via MCP: \`lazy_blueprint_run\` with \`name\` and \`input\` param
 - Keep changes minimal. Ship the simplest thing that works.
 - After the final sprint, do one last \`lazy_check\`, run \`lazy yolo report\`, and commit all work.
 - Documentation is auto-generated: plan.md updates on every sprint, sprint archives are created on completion, validation logs append on every check.
-
+${formatSkillsForPrompt(root)}
 ## Start Now
 
 Sprint 1 is ready. Call \`lazy_yolo_status\` to see the first sprint's tasks, then begin.
@@ -382,7 +383,7 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
   // Journal the start
   await journal(root, `YOLO mode started: "${goal}" — ${sprints.length} sprint(s) from ${prdPath}`);
 
-  return generateMasterPrompt(state);
+  return generateMasterPrompt(state, root);
 }
 
 async function preflightCheck(root: string, runSelftest: (quick: boolean, report: boolean) => Promise<void>): Promise<string | null> {

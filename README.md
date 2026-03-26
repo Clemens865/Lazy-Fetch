@@ -335,7 +335,8 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | `lazy init` | Initialize `.lazy/` with full scaffolding |
 | `lazy init --scan` | Initialize and bootstrap from existing project |
 | `lazy init --update` | Refresh hooks, commands, blueprints to latest version |
-| `lazy scan` | Re-scan project: detect stack, commands, git history, TODOs |
+| `lazy scan` | Re-scan project: detect stack, commands, git history, TODOs, skills |
+| `lazy skills` | Discover installed Claude Code skills for workflow integration |
 | `lazy upgrade` | Update lazy-fetch itself from GitHub |
 
 ## Slash Commands
@@ -499,6 +500,37 @@ lazy eval record [results]             → Record pass/fail for each criterion
 - **Normal mode**: run `lazy contract` before implementing, `lazy eval` after
 - **Yolo mode**: contracts auto-generated per sprint, evaluation prompt included in the loop
 - **MCP tools**: `lazy_contract`, `lazy_eval`, `lazy_eval_record`
+
+## Skill Discovery
+
+Lazy-fetch discovers installed Claude Code skills and integrates them into the workflow. Run `lazy skills` or `lazy scan` to find what's available:
+
+```
+$ lazy skills
+
+  Skills discovered: 11
+
+  research:
+    /api-database-scout — Discover APIs, databases, datasets for a domain
+    /idea-scout — Deep domain research with gap analysis
+
+  ui-design:
+    /design-scout — Research-driven design system creation
+    /ui-expert — Pixel-spec design prompts
+    /prd-generator — Generate comprehensive PRD from an idea
+
+  debugging:
+    /investigate — Systematic debugging with root cause investigation
+```
+
+### How skills get used
+
+- **Planner** (`lazy yolo "idea"`) — mentions available skills in the PRD generation prompt so the implementer knows to use `/frontend-design` for UI sprints
+- **Yolo master prompt** — lists relevant skills so Claude uses them during sprints instead of working generically
+- **Memory** — stores discovered skills in `available-skills` for cross-session awareness
+- **`lazy scan`** auto-discovers skills alongside stack, commands, and git info
+
+Skills complement lazy-fetch — lazy-fetch orchestrates (plan, contract, check, eval) while skills do the specialized work (design, research, debugging).
 
 ## Auto-Documentation
 

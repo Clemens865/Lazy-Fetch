@@ -78,6 +78,7 @@ lazy — CLI companion for Claude Code
     lazy init --scan           Initialize and bootstrap from existing project
     lazy init --update         Refresh hooks, commands, blueprints to latest
     lazy scan                  Re-scan project: detect stack, commands, git, TODOs
+    lazy skills                Discover installed Claude Code skills
     lazy upgrade               Update lazy-fetch itself from GitHub
     lazy help                  Show this help
 `;
@@ -362,6 +363,11 @@ async function main() {
     case "scan": {
       const { scan } = await import("./scan.js");
       await scan(root);
+      break;
+    }
+    case "skills": {
+      const { skillsCmd } = await import("./skills.js");
+      await skillsCmd(root);
       break;
     }
     case "claudemd":

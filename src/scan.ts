@@ -383,7 +383,15 @@ export async function scan(root: string): Promise<void> {
     try { await watch(root); } finally { console.log = origLog; }
   } catch {}
 
-  // 10. Journal the scan
+  // 10. Discover installed skills
+  try {
+    const { scanSkills } = await import("./skills.js");
+    await scanSkills(root);
+  } catch (err: any) {
+    console.log(`  Warning: skill discovery failed: ${err.message}`);
+  }
+
+  // 11. Journal the scan
   try {
     const { journal } = await import("./persist.js");
     const parts = [`Project scanned: ${stack.join(", ") || "unknown stack"}`];

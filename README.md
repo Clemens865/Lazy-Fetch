@@ -16,6 +16,8 @@ lazy plan       → 📋 Break goals into phased steps
 lazy gather     → 🔍 Pre-hydrate context for Claude Code
 lazy bp run     → ⚙  Execute a workflow (deterministic + agentic)
 lazy check      → ✓  Validate: tests, types, plan progress
+lazy contract   → 📝 Define testable success criteria before building
+lazy eval       → 🧪 Skeptical QA: test against contract, grade, report
 lazy remember   → 🧠 Persist knowledge across sessions
 lazy secure     → 🔒 Security audit: secrets, injection, auth, deps
 lazy doc        → 📄 Auto-generated docs: plan, sprints, validation, screenshots
@@ -263,6 +265,13 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | `lazy journal [entry]` | Append-only decision log |
 | `lazy snapshot [name]` | Save current state (plan + memory) |
 
+### Evaluate
+| Command | What it does |
+|---------|-------------|
+| `lazy contract <title>` | Generate testable success criteria for a task/sprint |
+| `lazy contract` | List existing contracts |
+| `lazy eval` | Evaluate work against active contract (returns QA prompt) |
+
 ### Yolo
 | Command | What it does |
 |---------|-------------|
@@ -436,6 +445,35 @@ lazy secure
 - **`lazy_secure` MCP tool** — Claude Code can run it directly
 - **`--gate` flag** for fast CI-friendly checks (critical + high only, skips dependency audit)
 
+## Sprint Contracts & Evaluation
+
+Inspired by [Anthropic's research on harness design](https://www.anthropic.com/engineering/harness-design-long-running-apps): separating generation from evaluation produces better results than self-assessment. Lazy-fetch implements this as **sprint contracts** + **skeptical evaluation**.
+
+### The Flow
+
+```
+lazy contract "User authentication"    → Define testable success criteria
+  ↓ implement...
+lazy eval                              → Skeptical QA: actually test each criterion
+  ↓ Claude tests via HTTP requests, Playwright, etc.
+lazy eval record [results]             → Record pass/fail for each criterion
+  → Grade: 4/5 (80%) — PASS
+```
+
+### How It Works
+
+1. **`lazy contract <title>`** generates testable criteria from your tasks. Auto-detects API vs UI test types from the task description and adds implicit quality criteria based on your stack.
+
+2. **`lazy eval`** returns a **skeptical QA prompt** that instructs Claude to actually test each criterion — not just read code. Rules: "Do NOT assume something works because the code looks correct. Actually run, click, call, or test."
+
+3. **`lazy eval record`** records results with pass/fail and notes per criterion. Grades against threshold (default 80%).
+
+### Integration
+
+- **Normal mode**: run `lazy contract` before implementing, `lazy eval` after
+- **Yolo mode**: contracts auto-generated per sprint, evaluation prompt included in the loop
+- **MCP tools**: `lazy_contract`, `lazy_eval`, `lazy_eval_record`
+
 ## Auto-Documentation
 
 Lazy-fetch automatically generates structured documentation as you work. No extra steps needed — docs are created as a side effect of planning, checking, and completing sprints.
@@ -477,15 +515,20 @@ In yolo mode, documentation is fully automatic — the plan doc updates as sprin
 
 ## MCP Server
 
-Lazy Fetch runs as an MCP server, giving Claude Code **27 native tools**:
+Lazy Fetch runs as an MCP server, giving Claude Code **34 native tools**:
 
 ```
-lazy_read, lazy_plan, lazy_add, lazy_status, lazy_update, lazy_check,
-lazy_context, lazy_gather, lazy_next, lazy_remove, lazy_reset_plan,
-lazy_watch, lazy_claudemd, lazy_remember, lazy_recall, lazy_journal,
-lazy_snapshot, lazy_doc, lazy_doc_screenshot, lazy_secure,
-lazy_blueprint_list, lazy_blueprint_show, lazy_blueprint_run,
-lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance, lazy_yolo_report
+The Loop:    lazy_read, lazy_plan, lazy_plan_from_file, lazy_add, lazy_status,
+             lazy_update, lazy_done, lazy_stuck, lazy_next, lazy_remove,
+             lazy_reset_plan, lazy_check
+Context:     lazy_context, lazy_gather, lazy_watch, lazy_claudemd
+Persist:     lazy_remember, lazy_recall, lazy_journal, lazy_snapshot
+Evaluate:    lazy_contract, lazy_eval, lazy_eval_record
+Docs:        lazy_doc, lazy_doc_screenshot
+Security:    lazy_secure
+Blueprints:  lazy_blueprint_list, lazy_blueprint_show, lazy_blueprint_run
+Yolo:        lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance,
+             lazy_yolo_resume, lazy_yolo_report
 ```
 
 Configured in `.mcp.json`. Claude Code can call these directly — no terminal switching needed.

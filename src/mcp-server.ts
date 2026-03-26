@@ -308,6 +308,53 @@ server.tool(
   }
 );
 
+// --- Evaluate ---
+
+server.tool(
+  "lazy_contract",
+  "Generate a sprint contract — testable success criteria for a task or sprint. Creates criteria based on tasks, auto-detects API vs UI test types, adds implicit quality criteria. Use before implementing to define 'done'.",
+  {
+    title: z.string().describe("Title of the task or sprint to create a contract for"),
+    tasks: z.array(z.string()).optional().describe("Specific tasks to generate criteria for (uses plan tasks if omitted)"),
+  },
+  async ({ title, tasks }) => {
+    const { generateContract } = await import("./eval.js");
+    const taskList = tasks ?? [title];
+    const output = await generateContract(getRoot(), title, taskList);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_eval",
+  "Evaluate work against the active sprint contract. Returns a skeptical QA prompt with testing instructions for each criterion. You must actually test (not just read code) and report results via lazy_eval_record.",
+  {
+    contract: z.string().optional().describe("Contract name to evaluate against (uses most recent if omitted)"),
+  },
+  async ({ contract }) => {
+    const { evaluate } = await import("./eval.js");
+    const output = await evaluate(getRoot(), contract);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
+  "lazy_eval_record",
+  "Record evaluation results for the active contract. Call this after testing each criterion. Pass an array of {id, pass, notes} objects.",
+  {
+    results: z.array(z.object({
+      id: z.number().describe("Criterion ID"),
+      pass: z.boolean().describe("Whether this criterion passed"),
+      notes: z.string().optional().describe("What you observed during testing"),
+    })).describe("Array of evaluation results for each criterion"),
+  },
+  async ({ results }) => {
+    const { evalRecord } = await import("./eval.js");
+    const output = await evalRecord(getRoot(), results);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
 // --- Documentation ---
 
 server.tool(

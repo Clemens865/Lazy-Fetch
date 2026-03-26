@@ -22,6 +22,8 @@ This project uses [lazy-fetch](https://github.com/Clemens865/Lazy-Fetch) for con
 | `lazy scan` | Re-scan project: detect stack, commands, git history, TODOs |
 | `lazy secure` | Full security audit: secrets, injection, auth, dependencies |
 | `lazy secure --gate` | Quick security check (critical + high only) |
+| `lazy contract <title>` | Generate testable success criteria before implementing |
+| `lazy eval` | Evaluate work against the active contract (skeptical QA) |
 | `lazy doc` | Show documentation overview (plan, validation log, sprints, screenshots) |
 | `lazy doc screenshot <url>` | Capture a Playwright screenshot for frontend validation |
 | `lazy yolo <prd-file>` | Autonomous mode: parse PRD into sprints, execute end-to-end |
@@ -89,6 +91,8 @@ When MCP is available, prefer calling lazy-fetch tools directly:
 
 **Persist:** `lazy_remember`, `lazy_recall`, `lazy_journal`, `lazy_snapshot`
 
+**Evaluate:** `lazy_contract`, `lazy_eval`, `lazy_eval_record`
+
 **Documentation:** `lazy_doc`, `lazy_doc_screenshot`
 
 **Security:** `lazy_secure`
@@ -96,6 +100,26 @@ When MCP is available, prefer calling lazy-fetch tools directly:
 **Blueprints:** `lazy_blueprint_list`, `lazy_blueprint_show`, `lazy_blueprint_run`
 
 **Yolo:** `lazy_yolo_start`, `lazy_yolo_status`, `lazy_yolo_advance`, `lazy_yolo_resume`, `lazy_yolo_report`
+
+### Sprint Contracts & Evaluation
+
+**Before implementing a task or sprint**, generate a contract to define what "done" means:
+1. Run `lazy_contract` with the task/sprint title → generates testable success criteria
+2. Implement the work
+3. Run `lazy_eval` → returns a skeptical QA prompt with testing instructions
+4. Actually test each criterion (HTTP requests, page navigation, etc.) — do NOT just read code
+5. Call `lazy_eval_record` with results for each criterion
+6. If grade is below threshold, fix failures and re-evaluate
+
+**When to suggest contracts:**
+- Before starting any non-trivial task: "Let me create a contract first so we know what 'done' looks like."
+- In yolo mode: contracts are auto-generated for each sprint
+- After a task fails validation: "Let me create a contract to be specific about what needs to work."
+
+**Evaluation rules (from Anthropic research):**
+- Separating evaluation from generation produces better results than self-assessment
+- Be a skeptical QA tester — actually test, don't assume
+- A failing grade with specific feedback is more valuable than a false pass
 
 ### Workflow Guidance
 
@@ -105,7 +129,8 @@ After completing a task or milestone, suggest the appropriate next lazy-fetch co
 - **New feature requested?** → Suggest `lazy bp run add-feature "<description>"`
 - **Want to try something?** → Suggest `lazy bp run experiment "<description>"`
 - **Review needed?** → Suggest `lazy bp run review-code "<scope>"`
-- Finished implementing? → Suggest `lazy check` then `lazy done <task>`
+- Starting a non-trivial task? → Suggest `lazy contract <title>` to define success criteria first
+- Finished implementing? → Suggest `lazy eval` to test against contract, then `lazy check` then `lazy done <task>`
 - Starting a new task? → Suggest `lazy gather <task>` for context
 - Made an important decision? → Suggest `lazy remember` or `lazy journal`
 - Done with the plan? → Suggest `lazy plan --reset` to archive and start fresh

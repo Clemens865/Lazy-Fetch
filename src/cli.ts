@@ -8,6 +8,7 @@ import { findLazyRoot, ensureLazyDir } from "./store.js";
 import { selftest } from "./selftest.js";
 import { secure } from "./secure.js";
 import { doc } from "./doc.js";
+import { contractCmd, evalCmd } from "./eval.js";
 
 const HELP = `
 lazy — CLI companion for Claude Code
@@ -50,6 +51,11 @@ lazy — CLI companion for Claude Code
     lazy yolo report           Run scorecard: process quality, build quality
     lazy yolo resume           Resume a paused/failed yolo session
     lazy yolo reset            Clear yolo state and start over
+
+  Evaluate:
+    lazy contract <title>      Generate testable success criteria for a task/sprint
+    lazy eval                  Evaluate work against the active contract
+    lazy contract              List existing contracts
 
   Documentation:
     lazy doc                   Show documentation overview
@@ -391,6 +397,17 @@ async function main() {
     case "snapshot":
       await snapshot(root, args[0]);
       break;
+
+    // Evaluate
+    case "contract": {
+      await contractCmd(root, args);
+      break;
+    }
+    case "eval":
+    case "evaluate": {
+      await evalCmd(root, args);
+      break;
+    }
 
     // Documentation
     case "doc":

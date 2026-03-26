@@ -5,6 +5,7 @@ import { check } from "./process.js";
 import { journal, snapshot } from "./persist.js";
 import { secureGate } from "./secure.js";
 import { generateYoloPlanDoc, generateSprintDoc, appendValidationLog } from "./doc.js";
+import { generateContract } from "./eval.js";
 
 // --- Types ---
 
@@ -229,18 +230,20 @@ ${sprintPlan}
 
 For each sprint:
 
-1. **Check status** — Call \`lazy_yolo_status\` to see the current sprint and its tasks
-2. **Gather context** — Call \`lazy_gather\` with the sprint title to find relevant files
-3. **Execute tasks** — For each task in the sprint, pick the right approach:
+1. **Review contract** — A sprint contract with testable success criteria was auto-generated. Read it in \`.lazy/contracts/\` to understand what "done" means.
+2. **Check status** — Call \`lazy_yolo_status\` to see the current sprint and its tasks
+3. **Gather context** — Call \`lazy_gather\` with the sprint title to find relevant files
+4. **Execute tasks** — For each task in the sprint, pick the right approach:
    - **Adding new functionality?** → Run \`lazy_blueprint_run\` with name \`add-feature\` and the task as input
    - **Fixing a bug?** → Run \`lazy_blueprint_run\` with name \`fix-bug\` and the bug description as input
    - **Trying something uncertain?** → Run \`lazy_blueprint_run\` with name \`experiment\` and the idea as input
    - **Setup/config/simple tasks?** → Implement directly, then run \`lazy_check\`
-4. **Follow blueprint prompts** — Blueprints return agentic steps (analyze, implement, document). Execute each prompt in order.
-5. **Validate** — Call \`lazy_check\` to verify typecheck + tests pass
-6. **Fix issues** — If checks fail, fix them. Repeat step 5 (max 3 attempts per sprint).
-7. **Advance** — Call \`lazy_yolo_advance\` with brief notes. This validates and moves to the next sprint.
-8. **Repeat** — Continue with the next sprint. Do not stop.
+5. **Follow blueprint prompts** — Blueprints return agentic steps (analyze, implement, document). Execute each prompt in order.
+6. **Validate** — Call \`lazy_check\` to verify typecheck + tests pass
+7. **Evaluate** — Call \`lazy_eval\` to test against the sprint contract. Follow the evaluation instructions: actually test each criterion (HTTP requests, page navigation, etc.), then call \`lazy_eval_record\` with results.
+8. **Fix issues** — If checks or evaluation fail, fix them. Repeat steps 6-7 (max 3 attempts per sprint).
+9. **Advance** — Call \`lazy_yolo_advance\` with brief notes. This validates and moves to the next sprint.
+10. **Repeat** — Continue with the next sprint. Do not stop.
 
 ## Blueprints Available
 
@@ -334,6 +337,11 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
   state.plan.sprints[0].started = now;
 
   saveState(root, state);
+
+  // Generate contract for first sprint
+  try {
+    await generateContract(root, state.plan.sprints[0].title, state.plan.sprints[0].tasks, 0);
+  } catch {}
 
   // Log start event
   logEvent(root, runId, {
@@ -587,6 +595,11 @@ export async function yoloAdvance(root: string, notes?: string): Promise<string>
     sprint: next.title,
     data: { sprintIndex: nextIdx, taskCount: next.tasks.length },
   });
+
+  // Generate contract for next sprint
+  try {
+    await generateContract(root, next.title, next.tasks, nextIdx);
+  } catch {}
 
   return `Sprint "${current.title}" completed!\n\n` +
     `  Next: Sprint ${nextIdx + 1} — ${next.title}\n` +

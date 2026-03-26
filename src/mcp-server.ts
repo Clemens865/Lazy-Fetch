@@ -400,8 +400,21 @@ server.tool(
 // --- Yolo Mode ---
 
 server.tool(
+  "lazy_yolo_plan",
+  "Expand a one-liner idea into a full PRD and start YOLO mode. Use this when the user describes what they want to build in 1-2 sentences instead of providing a PRD file. Returns a planner prompt — follow its instructions to generate the PRD, save it, then call lazy_yolo_start.",
+  {
+    idea: z.string().describe("The idea in 1-2 sentences (e.g., 'Build a 2D retro game maker with level editor and sprite tools')"),
+  },
+  async ({ idea }) => {
+    const { yoloPlan } = await import("./yolo.js");
+    const output = await yoloPlan(getRoot(), idea);
+    return { content: [{ type: "text", text: output }] };
+  }
+);
+
+server.tool(
   "lazy_yolo_start",
-  "Start YOLO mode: parse a PRD file into sprints and begin autonomous execution. Returns a master prompt with the full sprint plan and execution instructions.",
+  "Start YOLO mode from a PRD file. Parses the PRD into sprints and begins autonomous execution. Returns a master prompt with the full sprint plan and execution instructions. If you have a one-liner idea instead of a PRD file, use lazy_yolo_plan first.",
   {
     prd_file: z.string().describe("Path to the PRD markdown file (relative to project root)"),
   },

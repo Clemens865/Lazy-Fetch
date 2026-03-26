@@ -27,7 +27,8 @@ When the user says something, **match their intent and act**:
 | Describes a goal or project | `lazy_plan` to create phased tasks |
 | Asks "where are we?" or "what's next?" | `lazy_status` then `lazy_next` |
 | Asks about something stored | `lazy_recall` with the topic |
-| Asks to build from a PRD | `lazy_yolo_start` with the file path |
+| Describes what they want to build (1-2 sentences) | `lazy_yolo_plan` with the idea → generates PRD → starts yolo |
+| Provides a PRD file | `lazy_yolo_start` with the file path |
 | Says "check" or "does it work?" | `lazy_check` then `lazy_eval` if contract exists |
 | Asks about security | `lazy_secure` for full audit |
 | Says "screenshot" or wants to see the UI | `lazy_doc_screenshot` with the URL |
@@ -125,7 +126,7 @@ Generated automatically — no action needed:
 
 **Blueprints:** `lazy_blueprint_list`, `lazy_blueprint_show`, `lazy_blueprint_run`
 
-**Yolo:** `lazy_yolo_start`, `lazy_yolo_status`, `lazy_yolo_advance`, `lazy_yolo_resume`, `lazy_yolo_report`
+**Yolo:** `lazy_yolo_plan`, `lazy_yolo_start`, `lazy_yolo_status`, `lazy_yolo_advance`, `lazy_yolo_resume`, `lazy_yolo_report`
 
 ### Key Principles
 - **Act, don't just suggest** — call the tool directly when you know it's the right one

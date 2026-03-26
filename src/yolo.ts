@@ -6,6 +6,7 @@ import { journal, snapshot } from "./persist.js";
 import { secureGate } from "./secure.js";
 import { generateYoloPlanDoc, generateSprintDoc, appendValidationLog } from "./doc.js";
 import { generateContract } from "./eval.js";
+import { generatePlannerPrompt, isFilePath } from "./planner.js";
 
 // --- Types ---
 
@@ -275,6 +276,25 @@ Sprint 1 is ready. Call \`lazy_yolo_status\` to see the first sprint's tasks, th
 }
 
 // --- Public API ---
+
+/**
+ * Handle a one-liner idea: return a planner prompt for Claude to expand into a PRD.
+ */
+export async function yoloPlan(root: string, idea: string): Promise<string> {
+  // Check for existing session
+  const existing = loadState(root);
+  if (existing && existing.status === "running") {
+    const current = existing.plan.sprints[existing.currentSprint];
+    return `Yolo mode already running!\n\n` +
+      `  Goal: "${existing.plan.goal}"\n` +
+      `  Sprint ${existing.currentSprint + 1}/${existing.plan.sprints.length}: ${current?.title ?? "?"}\n\n` +
+      `Use 'lazy yolo status' to see progress or 'lazy yolo reset' to start over.`;
+  }
+
+  await journal(root, `YOLO planner started for: "${idea}"`);
+
+  return generatePlannerPrompt(root, idea);
+}
 
 export async function yoloStart(root: string, prdPath: string): Promise<string> {
   // Check for existing yolo session

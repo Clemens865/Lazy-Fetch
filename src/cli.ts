@@ -46,6 +46,7 @@ lazy — CLI companion for Claude Code
 
   Yolo (autonomous mode):
     lazy yolo <prd-file>       Parse PRD, sprint plan, execute autonomously
+    lazy yolo "<idea>"         One-liner → AI planner → PRD → sprints → done
     lazy yolo <prd> --dry-run  Preview sprint plan without writing state
     lazy yolo status           Show yolo mode progress
     lazy yolo report           Run scorecard: process quality, build quality
@@ -457,10 +458,20 @@ async function main() {
           process.exitCode = 1;
         }
       } else if (sub) {
-        const { yoloStart } = await import("./yolo.js");
-        console.log(await yoloStart(root, sub));
+        // Detect: file path or one-liner idea?
+        const fullInput = args.join(" ");
+        const { isFilePath } = await import("./planner.js");
+        if (isFilePath(sub)) {
+          const { yoloStart } = await import("./yolo.js");
+          console.log(await yoloStart(root, sub));
+        } else {
+          // One-liner idea → planner mode
+          const { yoloPlan } = await import("./yolo.js");
+          console.log(await yoloPlan(root, fullInput));
+        }
       } else {
         console.error("Usage: lazy yolo <prd-file>");
+        console.error('       lazy yolo "Build a task manager app"');
         console.error("       lazy yolo status");
         console.error("       lazy yolo reset");
         process.exitCode = 1;

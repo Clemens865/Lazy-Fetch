@@ -111,46 +111,49 @@ npm link
 
 ## Yolo Mode
 
-Point lazy fetch at a PRD and walk away. It breaks the project into sprints, then executes them autonomously using **blueprints** — gather context, implement via `add-feature`/`fix-bug`, validate, advance — until the whole thing is done.
+Two ways to start. A PRD file, or just a one-liner:
 
 ```bash
+# From a PRD
 lazy yolo PRD.md
+
+# From a one-liner — AI planner expands into full PRD first
+lazy yolo "Build a 2D retro game maker with level editor and sprite tools"
 ```
 
-```
-  Sprint Plan:
-    > Sprint 1: Foundation & Setup (active) ◄
-      Sprint 2: Core Features (pending)
-      Sprint 3: Testing & Polish (pending)
+Both produce the same result: an autonomous sprint-by-sprint build with validation gates, security checks, sprint contracts, and documentation — until the whole thing is done.
 
-  Your Loop:
-    1. Check status → lazy_yolo_status
-    2. Gather context → lazy_gather
-    3. Implement tasks → write code
-    4. Validate → lazy_check
-    5. Advance → lazy_yolo_advance
-    6. Repeat until done
-```
+### One-Liner Mode
+
+Inspired by [Anthropic's harness design research](https://www.anthropic.com/engineering/harness-design-long-running-apps): a senior product architect planner expands your idea into a comprehensive PRD with features, data models, tech stack, design direction, and phased roadmap. Then yolo mode executes it.
+
+The planner is opinionated:
+- **Ambitious** — builds something a real user would want, not a toy
+- **Product-focused** — high-level design, not implementation details (those cascade errors)
+- **Context-aware** — reads your existing stack, entry points, and memory
+- **Phase-structured** — MVP first, then expansion, each phase independently useful
 
 ### How It Works
 
-1. **Parses the PRD** — `##` headings become sprints, bullet points become tasks. Unstructured PRDs get split into 3 default sprints (Foundation, Core Features, Polish).
-2. **Creates a sprint plan** — stored in `.lazy/yolo.json`, separate from `plan.json`.
-3. **Returns a master prompt** — detailed instructions that tell Claude Code to loop autonomously through the sprints using MCP tools.
-4. **Claude Code drives the loop** — gathers context, writes code, validates (typecheck + tests), and advances sprint by sprint.
-5. **Validation gates** — each sprint must pass `lazy check` before advancing. Up to 3 retries per sprint, then pauses for human intervention.
-6. **Snapshots** — automatic `pre-yolo` and `post-yolo` snapshots for rollback safety.
+1. **Plans** (one-liner mode) — AI planner generates a full PRD from your idea
+2. **Parses** — `##` headings become sprints, bullet points become tasks
+3. **Contracts** — testable success criteria auto-generated per sprint
+4. **Builds** — Claude Code implements sprint by sprint using blueprints
+5. **Validates** — typecheck + tests + security gate + contract evaluation
+6. **Documents** — sprint archives, validation log, screenshots auto-generated
+7. **Advances** — passes all gates → next sprint. Fails → retries (max 3), then pauses
 
 ### Commands
 
 ```bash
-lazy yolo <prd-file>              # Parse PRD, create sprints, start autonomous mode
+lazy yolo <prd-file>              # Start from a PRD file
+lazy yolo "<idea>"                # Start from a one-liner (AI planner first)
 lazy yolo <prd-file> --dry-run    # Preview sprint plan without writing state
 lazy yolo status                  # Show current sprint progress
+lazy yolo report                  # Quality scorecard after completion
+lazy yolo resume                  # Resume a paused/failed session
 lazy yolo reset                   # Clear yolo state and start over
 ```
-
-Or use the slash command: `/project:yolo PRD.md`
 
 ### Example PRD
 
@@ -298,6 +301,7 @@ lazy journal "Chose refresh tokens over long-lived JWTs for security"
 | Command | What it does |
 |---------|-------------|
 | `lazy yolo <prd-file>` | Parse PRD into sprints, start autonomous execution |
+| `lazy yolo "<idea>"` | One-liner → AI planner → PRD → sprints → done |
 | `lazy yolo <prd> --dry-run` | Preview sprint plan without writing state |
 | `lazy yolo status` | Current sprint progress and overview |
 | `lazy yolo report` | Run scorecard: process quality, build quality, per-sprint timing |
@@ -537,7 +541,7 @@ In yolo mode, documentation is fully automatic — the plan doc updates as sprin
 
 ## MCP Server
 
-Lazy Fetch runs as an MCP server, giving Claude Code **34 native tools**:
+Lazy Fetch runs as an MCP server, giving Claude Code **35 native tools**:
 
 ```
 The Loop:    lazy_read, lazy_plan, lazy_plan_from_file, lazy_add, lazy_status,
@@ -549,8 +553,8 @@ Evaluate:    lazy_contract, lazy_eval, lazy_eval_record
 Docs:        lazy_doc, lazy_doc_screenshot
 Security:    lazy_secure
 Blueprints:  lazy_blueprint_list, lazy_blueprint_show, lazy_blueprint_run
-Yolo:        lazy_yolo_start, lazy_yolo_status, lazy_yolo_advance,
-             lazy_yolo_resume, lazy_yolo_report
+Yolo:        lazy_yolo_plan, lazy_yolo_start, lazy_yolo_status,
+             lazy_yolo_advance, lazy_yolo_resume, lazy_yolo_report
 ```
 
 Configured in `.mcp.json`. Claude Code can call these directly — no terminal switching needed.

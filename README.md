@@ -180,15 +180,37 @@ Running `lazy yolo PRD.md` on this creates 3 sprints with those exact tasks, the
 
 ## Claude Code Integration
 
-After `lazy init`, Claude Code **automatically knows about lazy-fetch**. A `CLAUDE.md` section is injected that:
+After `lazy init`, Claude Code **automatically knows about lazy-fetch** and **proactively uses it**. A `CLAUDE.md` section is injected that teaches Claude three levels of behavior:
 
-- Tells Claude Code which commands exist and when to use them
-- Makes Claude Code call MCP tools (`lazy_gather`, `lazy_check`, `lazy_remember`) directly
-- Prompts Claude Code to **recommend next steps** using lazy-fetch commands after each milestone
+### Automatic Actions (no prompting needed)
 
-You don't have to remember the commands — Claude Code will suggest them:
+Claude will do these without being asked:
 
-> *"I've implemented the login endpoint. Run `lazy check` to validate, then `lazy done 3` to mark this task complete."*
+| Trigger | Claude does |
+|---------|------------|
+| Session starts | Calls `lazy_read` to load context |
+| Before implementing | Calls `lazy_contract` to define "done" |
+| After code changes | Calls `lazy_check` (typecheck + tests + security) |
+| After implementing | Calls `lazy_eval` for skeptical QA against contract |
+| Architectural decision | Calls `lazy_remember` to persist it |
+| Task complete | Calls `lazy_done` to mark progress |
+| Empty memory (first session) | Calls `lazy scan` to bootstrap from codebase |
+
+### Pattern Recognition
+
+Claude maps what you say to the right tool:
+
+| You say | Claude does |
+|---------|------------|
+| "The login page throws a 500" | Runs `fix-bug` blueprint automatically |
+| "Add user authentication" | Runs `add-feature` blueprint |
+| "Where are we?" | Shows `lazy status` then `lazy next` |
+| "Does it work?" | Runs `lazy check` then `lazy eval` |
+| "Is it secure?" | Runs `lazy secure` for full audit |
+
+### Standard Loop
+
+Every task follows: **gather → contract → implement → check → eval → done**. You don't have to remember this — Claude follows it automatically.
 
 ## The Loop
 

@@ -307,6 +307,10 @@ export async function yoloStart(root: string, prdPath: string): Promise<string> 
       `Use 'lazy yolo status' to see progress or 'lazy yolo reset' to start over.`;
   }
 
+  // Ensure .lazy/ exists
+  const { ensureLazyDir } = await import("./store.js");
+  ensureLazyDir(root);
+
   // Pre-flight: quick selftest
   const { selftest: runSelftest } = await import("./selftest.js");
   const preflight = await preflightCheck(root, runSelftest);

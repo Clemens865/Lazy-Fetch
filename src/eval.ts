@@ -197,7 +197,13 @@ export async function evalRecord(
     return "No active contract found.";
   }
 
-  // Apply results
+  // Apply results (validate IDs exist)
+  const validIds = new Set(contract.criteria.map(c => c.id));
+  const unknownIds = results.filter(r => !validIds.has(r.id)).map(r => r.id);
+  if (unknownIds.length > 0) {
+    return `Unknown criterion IDs: ${unknownIds.join(", ")}. Valid IDs: ${[...validIds].join(", ")}`;
+  }
+
   for (const r of results) {
     const criterion = contract.criteria.find(c => c.id === r.id);
     if (criterion) {
@@ -268,8 +274,8 @@ export async function evalGate(root: string): Promise<{ pass: boolean; output: s
   // Check if all criteria have been evaluated
   const evaluated = contract.criteria.filter(c => c.status === "pass" || c.status === "fail");
   if (evaluated.length === 0) {
-    // Not yet evaluated — return the eval prompt instead of blocking
-    return { pass: true, output: "Contract exists but not yet evaluated — run lazy eval", grade: 0 };
+    // Contract exists but not evaluated — block advancement
+    return { pass: false, output: `Contract "${contract.title}" has ${contract.criteria.length} criteria but none evaluated yet. Run lazy_eval first.`, grade: 0 };
   }
 
   const passed = contract.criteria.filter(c => c.status === "pass").length;

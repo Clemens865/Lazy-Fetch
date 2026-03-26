@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, readdirSync } from "fs";
 import { join, resolve } from "path";
 import { writeLazyFile, readLazyFile, appendLazyFile, lazyPath } from "./store.js";
 
@@ -210,7 +210,6 @@ export function generateSprintDoc(root: string, sprint: SprintInfo): void {
   const screenshotDir = lazyPath(root, "docs", "screenshots");
   if (existsSync(screenshotDir)) {
     try {
-      const { readdirSync } = require("fs") as typeof import("fs");
       const shots = readdirSync(screenshotDir).filter(f =>
         f.startsWith(`sprint-${num}`) && (f.endsWith(".png") || f.endsWith(".jpg"))
       );
@@ -279,12 +278,15 @@ export async function captureScreenshot(
       if (existsSync(filepath)) {
         return filepath;
       }
-    } catch {
+    } catch (err: any) {
+      // Try next capture method
       continue;
     }
   }
 
-  // If no capture tool available, create a placeholder
+  // If no capture tool available, create a placeholder and warn
+  console.warn("  Warning: No screenshot tool available (tried Playwright, Puppeteer).");
+  console.warn("  Install with: npx playwright install chromium");
   writeLazyFile(root, `Screenshot placeholder for: ${url}\nCaptured: ${timestamp()}\n\nInstall playwright for actual screenshots:\n  npx playwright install chromium\n`, "docs", "screenshots", filename.replace(".png", ".txt"));
   return filepath.replace(".png", ".txt");
 }

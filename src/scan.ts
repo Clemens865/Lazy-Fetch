@@ -225,7 +225,7 @@ function scanTodos(root: string): string[] {
   const todos: string[] = [];
   try {
     const output = execSync(
-      'grep -rn "TODO\\|FIXME\\|HACK\\|XXX" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" --include="*.go" --include="*.rs" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build --exclude-dir=.next --exclude-dir=coverage --exclude-dir=.lazy . 2>/dev/null | head -30',
+      'grep -rn "TODO\\|FIXME\\|HACK\\|XXX" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" --include="*.go" --include="*.rs" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build --exclude-dir=.next --exclude-dir=coverage --exclude-dir=.lazy --exclude-dir=.git --exclude-dir=__pycache__ --exclude-dir=.venv --exclude-dir=venv --exclude-dir=.cache --exclude-dir=target --exclude-dir=.turbo --exclude-dir=.vercel . 2>/dev/null | head -30',
       { cwd: root, encoding: "utf-8", timeout: 10000 }
     ).trim();
     for (const line of output.split("\n").filter(Boolean)) {

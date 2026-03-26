@@ -181,15 +181,22 @@ Do not ask for confirmation. Generate the PRD and start yolo mode immediately.`)
 
 /**
  * Check if a string looks like a file path or a one-liner idea.
+ * Errs toward treating ambiguous input as an idea (planner mode).
  */
 export function isFilePath(input: string): boolean {
-  // Obvious file paths
-  if (input.endsWith(".md") || input.endsWith(".txt") || input.endsWith(".markdown")) return true;
-  if (input.startsWith("/") || input.startsWith("./") || input.startsWith("../")) return true;
-  if (input.includes("/") && !input.includes(" ")) return true;
-
-  // Check if file actually exists
+  // Check if file actually exists — most reliable test
   if (existsSync(input)) return true;
 
+  // Common document extensions
+  if (/\.(md|txt|markdown|mdx|rst|adoc)$/i.test(input)) return true;
+
+  // Explicit path prefixes (Unix and Windows)
+  if (/^[./\\~]/.test(input)) return true;
+  if (/^[A-Z]:\\/i.test(input)) return true; // Windows drive letter
+
+  // Path-like: contains separator but no spaces (e.g., "docs/PRD.md" not "Build a /api handler")
+  if ((input.includes("/") || input.includes("\\")) && !input.includes(" ")) return true;
+
+  // Everything else is treated as an idea
   return false;
 }

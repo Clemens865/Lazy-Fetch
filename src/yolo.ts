@@ -94,47 +94,131 @@ function parsePrdToSprints(prdContent: string): { goal: string; sprints: Sprint[
   const goalLine = lines.find(l => /^#\s+/.test(l));
   const goal = goalLine?.replace(/^#+\s*/, "").trim() || "Project from PRD";
 
-  // Try to find sprint/phase sections
-  const sprintSections: { title: string; tasks: string[] }[] = [];
-  let currentSection: { title: string; tasks: string[] } | null = null;
+  // --- Strategy 1: Look for explicit Phase/Sprint headings ---
+  // These are sections that are clearly implementation phases (at ## or ### level)
+  const phasePattern = /^#{2,3}\s+(?:Phase|Sprint|Stage|Step|Milestone|Part|Week)\s*\d*\s*[:.—–\-]\s*(.*)/i;
+  const phaseSections: { title: string; tasks: string[] }[] = [];
+  let currentPhase: { title: string; tasks: string[] } | null = null;
+  let inPhase = false;
 
   for (const line of lines) {
-    // Match ## headings as sprint boundaries
-    const headingMatch = line.match(/^##\s+(.+)/);
-    if (headingMatch) {
-      if (currentSection) sprintSections.push(currentSection);
-      currentSection = { title: headingMatch[1].trim(), tasks: [] };
+    const phaseMatch = line.match(phasePattern);
+    if (phaseMatch) {
+      if (currentPhase) phaseSections.push(currentPhase);
+      currentPhase = { title: phaseMatch[1].trim().replace(/^["']|["']$/g, ""), tasks: [] };
+      inPhase = true;
       continue;
     }
 
-    // Collect bullet points as tasks
-    const bulletMatch = line.match(/^[\s]*[-*]\s+(.+)/);
-    if (bulletMatch && currentSection) {
-      const task = bulletMatch[1].trim();
-      // Skip very short items (likely not real tasks)
-      if (task.length > 5) {
-        currentSection.tasks.push(task);
+    // A new heading at the same or higher level that isn't a phase ends the current section
+    if (inPhase && /^#{1,2}\s+/.test(line) && !phaseMatch) {
+      if (currentPhase) phaseSections.push(currentPhase);
+      currentPhase = null;
+      inPhase = false;
+      continue;
+    }
+
+    if (inPhase && currentPhase) {
+      // Collect tasks: bullet points and ### feature headings
+      const featureMatch = line.match(/^###\s+(?:F\d+[.:]\s*)?(.+)/);
+      if (featureMatch) {
+        // Feature heading — use as a task
+        currentPhase.tasks.push(featureMatch[1].trim());
+        continue;
+      }
+
+      // Also collect high-level bullet points (not deeply nested)
+      const bulletMatch = line.match(/^[-*]\s+(.+)/);
+      if (bulletMatch) {
+        const task = bulletMatch[1].trim();
+        // Skip table rows, short items, and metadata-like bullets
+        if (task.length > 10 && !task.startsWith("|") && !task.startsWith("*") &&
+            !/^(Note|See|Ref|Total|Count|Build time|Exit criteria)/i.test(task)) {
+          currentPhase.tasks.push(task);
+        }
+      }
+
+      // Deliverable table rows: | Deliverable | Requirements |
+      const delivMatch = line.match(/^\|\s*([^|]+?)\s*\|\s*(?:FR|NFR|DR)[^|]*\|/);
+      if (delivMatch) {
+        const deliverable = delivMatch[1].trim();
+        if (deliverable.length > 5 && deliverable !== "Deliverable") {
+          currentPhase.tasks.push(deliverable);
+        }
       }
     }
   }
-  if (currentSection) sprintSections.push(currentSection);
+  if (currentPhase) phaseSections.push(currentPhase);
 
-  // Filter out sections that are just metadata (no tasks)
-  const validSections = sprintSections.filter(s => s.tasks.length > 0);
+  // If we found explicit phases, use them
+  if (phaseSections.length >= 2 && phaseSections.some(s => s.tasks.length > 0)) {
+    const sprints: Sprint[] = phaseSections
+      .filter(s => s.tasks.length > 0)
+      .map((s, i) => ({
+        id: `sprint-${i + 1}`,
+        title: s.title,
+        tasks: s.tasks.slice(0, 15), // Cap at 15 tasks per sprint
+        status: "pending" as SprintStatus,
+      }));
+    return { goal, sprints };
+  }
+
+  // --- Strategy 2: Look for any structured ## sections with actionable content ---
+  // Skip sections that are clearly documentation/metadata
+  const DOC_SECTIONS = new Set([
+    "executive summary", "summary", "overview", "vision", "scope",
+    "anti-goals", "success criteria", "key differentiator",
+    "architecture", "system diagram", "technical decisions", "infrastructure",
+    "risks", "risk matrix", "validation", "validation plan",
+    "open questions", "appendix", "stakeholder", "schema", "storage",
+    "research", "premises", "premise", "verdict",
+    "user journeys", "user stories", "personas",
+    "requirements overview", "non-functional", "data requirements",
+    "key technical decisions", "database schema", "roadmap",
+    "installed footprint", "component summary",
+  ]);
+
+  const actionSections: { title: string; tasks: string[] }[] = [];
+  let currentSection: { title: string; tasks: string[] } | null = null;
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^##\s+(.+)/);
+    if (headingMatch) {
+      if (currentSection) actionSections.push(currentSection);
+      const title = headingMatch[1].trim();
+      // Skip documentation sections
+      const titleLower = title.toLowerCase().replace(/^\d+\.\s*/, "");
+      const isDoc = [...DOC_SECTIONS].some(ds => titleLower.includes(ds));
+      currentSection = isDoc ? null : { title, tasks: [] };
+      continue;
+    }
+
+    if (currentSection) {
+      const bulletMatch = line.match(/^[-*]\s+(.+)/);
+      if (bulletMatch) {
+        const task = bulletMatch[1].trim();
+        if (task.length > 10 && !task.startsWith("|")) {
+          currentSection.tasks.push(task);
+        }
+      }
+    }
+  }
+  if (currentSection) actionSections.push(currentSection);
+
+  const validSections = actionSections.filter(s => s.tasks.length > 0);
 
   let sprints: Sprint[];
 
   if (validSections.length >= 2) {
-    // PRD has structure — use it
     sprints = validSections.map((s, i) => ({
       id: `sprint-${i + 1}`,
       title: s.title,
-      tasks: s.tasks,
+      tasks: s.tasks.slice(0, 15),
       status: "pending" as SprintStatus,
     }));
   } else {
     // Unstructured PRD — collect all tasks and divide into 3 sprints
-    const allTasks = sprintSections.flatMap(s => s.tasks);
+    const allTasks = actionSections.flatMap(s => s.tasks);
 
     if (allTasks.length === 0) {
       // No bullet points at all — create generic sprints from prose

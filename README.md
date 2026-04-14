@@ -431,8 +431,27 @@ steps:
 - `gather` — Run `lazy gather` with the given task description.
 - `remember` — Store a key-value fact in memory.
 - `gate` — Check a condition, control flow on failure.
+- `loop` — Re-run `command` up to `max_iterations` times, completing on a substring signal in the output **OR** a separate bash gate exiting 0. Inspired by Archon's `until:` nodes.
 
-Variables: `${input}` is replaced with the blueprint input. `${step_N_output}` contains output from step N.
+```yaml
+- name: tests-until-green
+  type: loop
+  command: "npm test"
+  loop:
+    until: "0 failing"          # substring in command output
+    until_bash: "npm test -s"   # OR: exit 0 → done
+    max_iterations: 5
+```
+
+Variables: `${input}` is replaced with the blueprint input. `${step_N_output}` contains output from step N. Inside `loop` steps, `${loop_iteration}` and `${loop_last_output}` are also available.
+
+**Worktree isolation:** Any blueprint can run inside a fresh git worktree on a throwaway branch — experimental edits never touch your working tree. Enable per-blueprint with `isolation: worktree` in the YAML, or per-invocation with `--isolate`:
+
+```bash
+lazy bp run experiment "try a new state shape" --isolate
+```
+
+When isolated, shell steps (`run` / `gate` / `loop`) execute inside `~/.lazy/worktrees/<repo>/<bp>-<runId>` on branch `lazy/bp-<bp>-<runId>`. `gather` and `remember` keep writing to the real `.lazy/` so memory persists. On completion *or* failure the worktree dir is torn down, but the branch is preserved — `git checkout lazy/bp-...` to inspect, `git branch -D` to discard.
 
 ## Security
 

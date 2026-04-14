@@ -377,16 +377,19 @@ async function main() {
     // Blueprints
     case "bp":
     case "blueprint": {
-      const [sub, ...bpArgs] = args;
+      // Strip --isolate (anywhere in the arg list) so it doesn't bleed into the input string.
+      const isolate = args.includes("--isolate");
+      const filtered = args.filter((a) => a !== "--isolate");
+      const [sub, ...bpArgs] = filtered;
       if (!sub || sub === "list") {
         console.log(await blueprintList(root));
       } else if (sub === "show") {
         console.log(await blueprintShow(root, bpArgs[0]));
       } else if (sub === "run") {
-        console.log(await blueprintRun(root, bpArgs[0], bpArgs.slice(1).join(" ")));
+        console.log(await blueprintRun(root, bpArgs[0], bpArgs.slice(1).join(" "), { isolate }));
       } else {
         // Shorthand: lazy bp fix-bug "the description"
-        console.log(await blueprintRun(root, sub, bpArgs.join(" ")));
+        console.log(await blueprintRun(root, sub, bpArgs.join(" "), { isolate }));
       }
       break;
     }

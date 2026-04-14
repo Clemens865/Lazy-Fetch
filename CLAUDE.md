@@ -103,6 +103,47 @@ Blueprints are pre-built workflows that handle the full cycle: gather context, c
 - Validation gates retry on failure (typecheck + tests must pass)
 - Results are persisted to memory via `lazy remember`
 
+**Step types available when authoring blueprints:**
+
+| Type | Purpose |
+|------|---------|
+| `run` | Shell command. Supports `gate.on_fail: retry\|stop\|skip` + `gate.max_retries`. |
+| `prompt` | Yields an instruction for Claude Code to act on (the agentic hand-off). |
+| `gate` | Validation check via shell exit code. `on_fail: stop\|skip`. |
+| `gather` | Pre-hydrates context for a task via `lazy gather`. |
+| `remember` | Persists a key/value to `.lazy/memory.json`. |
+| `loop` | Re-runs `command` up to `max_iterations` times, completing on `until` substring **OR** `until_bash` exit-0. Inside the loop, `${loop_iteration}` and `${loop_last_output}` are available. Loops cannot use `gate.retry` (the loop *is* the retry). |
+
+Example loop step:
+```yaml
+- name: tests-until-green
+  type: loop
+  command: "npm test"
+  loop:
+    until: "0 failing"          # substring in command output
+    until_bash: "npm test -s"   # OR: exit 0 → done
+    max_iterations: 5
+  gate:
+    on_fail: skip               # default: stop when cap reached
+```
+
+**Worktree isolation — running a blueprint without dirtying the working tree:**
+
+Any blueprint can run inside a fresh git worktree on a throwaway branch. Two ways to enable:
+
+1. **Per-blueprint** (front-matter): add `isolation: worktree` at the top level of the YAML.
+2. **Per-invocation** (CLI flag): `lazy bp run <name> "<input>" --isolate`
+
+When isolated:
+- A worktree is created at `~/.lazy/worktrees/<repo>/<bp>-<runId>` on branch `lazy/bp-<bp>-<runId>` from current HEAD
+- `run` / `gate` / `loop` steps execute with cwd = the worktree (real working tree is untouched)
+- `gather` / `remember` keep writing to the real `.lazy/` so memory persists across runs
+- `prompt` steps get a worktree-path hint prepended — **honor it**: edit files inside the worktree path, not the original repo
+- On completion *or* failure, the worktree dir is torn down but **the branch is preserved** so the work is recoverable: `git checkout lazy/bp-<bp>-<runId>` to inspect, or `git branch -D` to discard
+- Concurrent isolated runs are safe (random suffix prevents collisions)
+
+When to suggest `--isolate`: experiments, risky refactors, anything the user says "try" or "spike" or "without committing." The `experiment` blueprint is a natural fit. Don't use isolation when the user expects edits to land directly in their working tree.
+
 **When to suggest a blueprint:**
 1. When the user describes a task that matches a blueprint, suggest the blueprint command *before* starting the work
 2. Example: User says "the login page throws a 500 error" → say: *"This sounds like a bug fix. I'll run `lazy bp run fix-bug "login page throws 500 error"` to gather context, analyze, fix, and validate systematically."*

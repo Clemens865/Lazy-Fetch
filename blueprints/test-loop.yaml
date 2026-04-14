@@ -1,0 +1,27 @@
+name: test-loop
+description: Smoke test for the until-loop step type (signal, bash gate, cap)
+
+steps:
+  - name: signal-completes-immediately
+    type: loop
+    command: "echo iter ${loop_iteration}: DONE"
+    loop:
+      until: "DONE"
+      max_iterations: 3
+
+  - name: bash-gate-completes-immediately
+    type: loop
+    command: "echo iter ${loop_iteration}"
+    loop:
+      until_bash: "true"
+      max_iterations: 3
+
+  - name: cap-reached-then-skipped
+    type: loop
+    command: "echo iter ${loop_iteration}: still going"
+    loop:
+      until: "NEVER_MATCHES"
+      until_bash: "false"
+      max_iterations: 2
+    gate:
+      on_fail: skip

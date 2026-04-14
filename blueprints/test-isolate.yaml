@@ -1,0 +1,19 @@
+name: test-isolate
+description: Smoke test for worktree isolation — proves cwd is the worktree, not the original repo
+isolation: worktree
+
+steps:
+  - name: confirm-cwd-is-worktree
+    type: run
+    command: "pwd && git rev-parse --abbrev-ref HEAD"
+
+  - name: prove-isolation-write
+    type: run
+    command: "echo isolated > .lazy-isolate-marker && ls -la .lazy-isolate-marker"
+
+  - name: loop-iterates-in-worktree
+    type: loop
+    command: "pwd"
+    loop:
+      until_bash: "test -f .lazy-isolate-marker"
+      max_iterations: 2
